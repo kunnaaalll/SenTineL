@@ -1,0 +1,73 @@
+# Sentinel — repo-wide tooling configuration.
+#
+# backend/ is a source root (its modules import absolutely, e.g.
+# `from models.schemas import Chunk`), so every tool below resolves imports
+# against `backend/` rather than treating it as an installable package.
+
+[project]
+name = "sentinel"
+version = "0.1.0"
+description = "Agentic financial research copilot — RAG over SEC filings, transcripts, and news"
+requires-python = ">=3.11"
+
+# ---------------------------------------------------------------------------
+# Ruff: formatting + linting
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["backend"]          # first-party import detection
+extend-exclude = [".venv"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors (E501 handled by the formatter)
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade — keep code at the py311 idiom
+    "B",   # flake8-bugbear — real-bug detector
+]
+# E501 is intentionally omitted: ruff format wraps what it can; string/comment
+# length is enforced by review, not a lint failure.
+
+[tool.ruff.lint.per-file-ignores]
+# Tests use fixture-style bare asserts and long literal payloads.
+"backend/tests/*" = ["E501"]
+
+# ---------------------------------------------------------------------------
+# Mypy: static type checking
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.11"
+mypy_path = ["backend", "backend/tests"]  # tests import the shared fakes.py directly
+files = ["backend"]
+plugins = ["pydantic.mypy"]     # teaches mypy BaseSettings' _env_file-style kwargs
+explicit_package_bases = true   # backend/ has no __init__.py on purpose
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+# Third-party packages without inline types or bundled stubs in this venv.
+module = ["bs4.*", "yaml.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# Optional runtime dependency: not installed by default (tracing degrades to
+# a no-op without it), so its imports are guarded and untyped to mypy.
+module = ["langfuse.*"]
+ignore_missing_imports = true
+follow_imports = "skip"
+
+# ---------------------------------------------------------------------------
+# Pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+pythonpath = ["backend"]        # source root; conftest.py keeps this for ad-hoc runs too
+addopts = "-ra --strict-markers"

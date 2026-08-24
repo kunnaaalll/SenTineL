@@ -1,0 +1,244 @@
+"""Fetch agent (spec section 10.2) — evidence gathering with loop protection.
+
+Order of operations, per the "indexed chunks first" requirement:
+
+1. Plan deterministically from the question: tickers, date range, source
+   types (regex/entity-extractor based, zero LLM cost).
+2. Search what is ALREADY indexed in the vector store for those dimensions.
+3. Only for (ticker, source_type) combinations with zero hits, trigger live
+   ingestion through the pipeline — bounded by `max_live_ingests` per query
+   and the state's `ingested_keys` memory, so a query can never cause
+   repeated ingestion loops.
+4. Merge SEC + news evidence, deduplicated by chunk id, scores preserved.
+
+Unavailable sources (missing key, disabled adapter, failed live ingest) are
+reported explicitly via state["unavailable_sources"] instead of failing the
+node: partial evidence still supports a grounded answer downstream.
+
+The node function signature matches LangGraph convention: takes AgentState,
+returns a partial-update dict.
+"""
+
+import logging
+import re
+from dataclasses import dataclass, field
+
+from config.settings import Settings, get_settings
+from ingestion.entity_extractor import BUILTIN_TICKERS
+from models.schemas import RetrievedChunk
+from observability.langfuse_wrapper import NULL_TRACER, Tracer
+from retrieval.base import VectorStore
+
+logger = logging.getLogger(__name__)
+
+# Words that make a news feed relevant; filings stay the default evidence base.
+_NEWS_HINT_RE = re.compile(
+    r"\b(news|announced|announcement|report(ed|edly)?|headline|press release|"
+    r"earnings call|guidance|upgraded|downgraded|lawsuit|recall|merger|acquisition)\b",
+    re.IGNORECASE,
+)
+_YEAR_RE = re.compile(r"\b(?:19|20)\d{2}\b")  # non-capturing: findall needs full years
+_CASHTAG_RE = re.compile(r"\$([A-Za-z]{2,5})\b")
+_TOKEN_RE = re.compile(r"\b([A-Z][A-Z0-9.&/-]{0,6})\b")
+
+_MAX_CHUNKS_FOR_ANSWER = 24  # total evidence ceiling handed to extract/synthesize
+
+
+@dataclass
+class QueryPlan:
+    """What the fetch agent will look for. Deterministic output."""
+
+    retrieval_query: str
+    tickers: list[str] = field(default_factory=list)
+    date_range: tuple[str | None, str | None] | None = None
+    source_types: list[str] = field(default_factory=lambda: ["sec_filing", "news"])
+
+
+class QueryPlanner:
+    """Regex-level entity/date/source planning shared by tests and the agent."""
+
+    def __init__(self, *, known_tickers: frozenset[str] | set[str] | None = None):
+        self.known_tickers = (
+            frozenset(known_tickers) if known_tickers is not None else BUILTIN_TICKERS
+        )
+
+    def detect_tickers(self, text: str) -> list[str]:
+        found: list[str] = [m.group(1).upper() for m in _CASHTAG_RE.finditer(text)]
+        alternation = "|".join(
+            re.escape(t) for t in sorted(self.known_tickers, key=len, reverse=True) if t.isalpha()
+        )
+        if alternation:
+            found.extend(m.group(0) for m in re.finditer(rf"\b({alternation})\b", text))
+        ordered: list[str] = []
+        for ticker in found:
+            if ticker not in ordered:
+                ordered.append(ticker)
+        return ordered
+
+    def plan(self, question: str) -> QueryPlan:
+        cleaned = re.sub(r"\s+", " ", question).strip()
+        tickers = self.detect_tickers(cleaned)
+
+        years = sorted({int(y) for y in _YEAR_RE.findall(cleaned)})
+        date_range = None
+        if years:
+            date_range = (f"{years[0]}-01-01", f"{years[-1]}-12-31")
+
+        source_types = ["sec_filing"]
+        if _NEWS_HINT_RE.search(cleaned):
+            source_types.append("news")
+
+        return QueryPlan(
+            retrieval_query=cleaned or question.strip(),
+            tickers=tickers,
+            date_range=date_range,
+            source_types=source_types,
+        )
+
+
+class FetchAgent:
+    """Retrieval + gated live ingestion. Injectable end to end for tests."""
+
+    name = "fetch"
+
+    def __init__(
+        self,
+        *,
+        engine,
+        store: VectorStore,
+        adapters: dict,
+        pipeline=None,
+        settings: Settings | None = None,
+        tracer: Tracer | None = None,
+        planner: QueryPlanner | None = None,
+        top_k_per_search: int = 8,
+        max_live_ingests: int = 2,
+    ):
+        self.engine = engine
+        self.store = store
+        self.adapters = adapters  # keyed by source_type ("sec_filing", "news")
+        self.pipeline = pipeline  # IngestionPipeline or None (no live fetching)
+        self.settings = settings or get_settings()
+        self.tracer = tracer if tracer is not None else NULL_TRACER
+        self.planner = planner or QueryPlanner()
+        self.top_k_per_search = top_k_per_search
+        self.max_live_ingests = max_live_ingests
+
+    def __call__(self, state: dict) -> dict:
+        trace = self.tracer.start_trace(
+            "agent_fetch", input={"query": state.get("query", "")[:512]}
+        )
+        plan = self.planner.plan(state.get("query", ""))
+        updates: dict = {
+            "tickers": plan.tickers,
+            "agent_path": [*state.get("agent_path", []), self.name],
+        }
+
+        try:
+            vector = self.engine.embed([plan.retrieval_query])[0].vector
+        except Exception as exc:  # noqa: BLE001 — degrade to empty evidence
+            logger.warning("Fetch embed failed (%s); continuing without evidence", exc)
+            trace.finish(output={"status": "embed_failed"})
+            return {
+                **updates,
+                "retrieved_chunks": [],
+                "limitations": ["retrieval unavailable (embedding provider failed)"],
+            }
+        updates.setdefault("trace_urls", []).append(trace.url)
+
+        ticker_filter = plan.tickers[0] if len(plan.tickers) == 1 else None
+        filters_base: dict = {}
+        if ticker_filter:
+            filters_base["ticker"] = ticker_filter
+        if plan.date_range:
+            filters_base["date_range"] = list(plan.date_range)
+
+        retrieved: dict[str, RetrievedChunk] = {}
+        for source_type in plan.source_types:
+            found = self._search(vector, {**filters_base, "source_type": source_type})
+            for chunk in found:
+                retrieved[chunk.chunk_id] = chunk
+
+        # Live-ingest only the empty (ticker, source_type) combos, bounded.
+        ingested_keys = list(state.get("ingested_keys", []))
+        unavailable = list(state.get("unavailable_sources", []))
+        limitations = list(state.get("limitations", []))
+        live_budget = self.max_live_ingests
+
+        for source_type in plan.source_types:
+            adapter = self.adapters.get(source_type)
+            adapter_name = getattr(adapter, "name", source_type)
+            if any(c.source_type == source_type for c in retrieved.values()):
+                continue
+            if adapter is None or not adapter.is_available():
+                reason = "not configured" if adapter is None else "unavailable (missing API key)"
+                unavailable.append(f"{adapter_name}: {reason}")
+                continue
+            for ticker in plan.tickers[:2]:  # cap live work per source type
+                key = f"{ticker}:{source_type}"
+                if key in ingested_keys:
+                    continue
+                if live_budget <= 0:
+                    limitations.append(f"live ingestion skipped for {key} (budget)")
+                    continue
+                live_budget -= 1
+                ingested_keys.append(key)  # recorded BEFORE attempting: one try per run
+                stats = self._ingest(adapter, source_type, ticker, plan, unavailable)
+                if stats:
+                    for chunk in self._search(vector, {**filters_base, "source_type": source_type}):
+                        retrieved[chunk.chunk_id] = chunk
+
+        ordered = sorted(retrieved.values(), key=lambda c: (-c.score, c.chunk_id))
+        truncated = len(ordered) > _MAX_CHUNKS_FOR_ANSWER
+        ordered = ordered[:_MAX_CHUNKS_FOR_ANSWER]
+
+        trace.finish(
+            output={
+                "status": "ok" if ordered else "empty",
+                "chunks": len(ordered),
+                "live_ingests": len(ingested_keys) - len(state.get("ingested_keys", [])),
+                "truncated": truncated,
+            }
+        )
+        return {
+            **updates,
+            "retrieved_chunks": ordered,
+            "ingested_keys": ingested_keys,
+            "unavailable_sources": unavailable,
+            "limitations": limitations,
+        }
+
+    def _search(self, vector: list[float], filters: dict) -> list[RetrievedChunk]:
+        try:
+            return self.store.search(vector, top_k=self.top_k_per_search, filters=filters)
+        except Exception as exc:  # noqa: BLE001 — a broken store must not kill the node
+            logger.warning("Store search failed for %s (%s)", filters, exc)
+            return []
+
+    def _ingest(
+        self, adapter, source_type: str, ticker: str, plan: QueryPlan, unavailable: list[str]
+    ) -> bool:
+        """Bounded live ingestion. Returns True when it may have added content."""
+        if self.pipeline is None:
+            unavailable.append(f"{adapter.name}: live ingestion not wired")
+            return False
+        params: dict = {"ticker": ticker, "limit": 5 if source_type == "news" else 2}
+        if plan.date_range:
+            params["date_range"] = list(plan.date_range)
+        try:
+            stats = self.pipeline.ingest(params, source_type=source_type)
+        except Exception as exc:  # noqa: BLE001 — report, never crash the node
+            logger.warning("Live ingestion failed for %s (%s)", f"{ticker}:{source_type}", exc)
+            unavailable.append(f"{adapter.name}: live ingestion failed ({type(exc).__name__})")
+            return False
+        logger.info(
+            "Live ingest %s: fetched=%d indexed=%d failed=%d",
+            f"{ticker}:{source_type}",
+            stats.documents_fetched,
+            stats.chunks_indexed,
+            stats.documents_failed,
+        )
+        return stats.chunks_indexed > 0
+
+
+__all__ = ["FetchAgent", "QueryPlan", "QueryPlanner"]

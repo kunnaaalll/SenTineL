@@ -1,0 +1,19 @@
+# Sentinel backend development dependencies.
+# Runtime-only installs use requirements.txt; local dev and CI use this file.
+# Reproducible installs: backend/requirements-lock.txt (see `make lock`).
+
+-r requirements.txt
+
+# API test client (fastapi TestClient needs httpx)
+httpx>=0.27,<1
+
+# Formatting + linting (configured in pyproject.toml [tool.ruff])
+ruff>=0.12,<1
+
+# Static type checking (configured in pyproject.toml [tool.mypy])
+mypy>=1.16,<2
+types-requests>=2.32
+types-PyYAML>=6.0
+
+# Git hook runner (config: .pre-commit-config.yaml)
+pre-commit>=3.8,<5

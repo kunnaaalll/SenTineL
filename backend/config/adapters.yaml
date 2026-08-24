@@ -1,0 +1,8 @@
+sec_edgar:
+  enabled: true
+news_api:
+  enabled: true
+  provider: financial_modeling_prep
+apex:
+  enabled: false
+  endpoint: ${APEX_ENDPOINT_URL}

@@ -1,0 +1,21 @@
+# Sentinel backend dependencies
+# Phase 1: data sources, ingestion, retrieval
+pydantic>=2.7,<3
+pydantic-settings>=2.3,<3
+requests>=2.32,<3
+beautifulsoup4>=4.12,<5
+PyYAML>=6.0,<7
+pinecone>=5.0,<8
+
+# Phase 2: LLM providers, RAG chain, API
+openai>=1.40,<2          # guarded import: a missing package degrades to provider-unavailable
+fastapi>=0.115,<1
+uvicorn>=0.30,<1
+
+# Phase 3: agent team (fetch -> extract -> compare -> synthesize graph)
+langgraph>=0.2,<0.3
+
+# Optional (not installed by default): langfuse — tracing degrades to a no-op without it
+
+# Dev / test
+pytest>=8.0
