@@ -28,7 +28,7 @@ from typing import Any
 import requests
 from bs4 import BeautifulSoup, NavigableString
 
-from config.settings import Settings, get_settings
+from config.settings import Settings, get_settings, is_placeholder_contact_email
 from data_sources.base import DataSourceAdapter
 from models.schemas import RawDocument
 
@@ -43,6 +43,11 @@ ARCHIVES_URL = "https://www.sec.gov/Archives/edgar/data/{cik}/{accession_nodashe
 # surfaces immediately. SEC aggressively bans abusers — never hammer on 403.
 _RETRYABLE_STATUSES = {408, 429, 502, 503, 504}
 _MAX_RETRY_WAIT_SECONDS = 60.0  # clamp pathological Retry-After values
+
+
+class SecContactEmailConfigError(ValueError):
+    """Live EDGAR use attempted while SEC_CONTACT_EMAIL is still a placeholder."""
+
 
 # Module-level indirection so offline tests can patch sleeps out.
 _sleep = time.sleep
@@ -256,6 +261,19 @@ class SecEdgarAdapter(DataSourceAdapter):
     # -- public entry point -------------------------------------------------
 
     def fetch(self, query_params: dict) -> list[RawDocument]:
+        # SEC fair-access gate: no live EDGAR request may leave while the
+        # User-Agent still carries the placeholder contact — that is exactly
+        # the traffic pattern SEC bans IPs for. Raised before any network I/O;
+        # surfaces via pipeline failures / agent unavailable_sources with this
+        # message intact.
+        if is_placeholder_contact_email(self.settings.sec_contact_email):
+            raise SecContactEmailConfigError(
+                "SEC_CONTACT_EMAIL is not configured with a real address. SEC "
+                "fair-access policy requires a descriptive User-Agent carrying a "
+                "genuine contact before live EDGAR use. Set SEC_CONTACT_EMAIL "
+                "(see .env.example) and retry."
+            )
+
         params = dict(query_params)
         ticker = params.get("ticker")
         query = params.get("query")

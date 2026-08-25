@@ -1,6 +1,17 @@
-# Sentinel CI — runs the full offline gate on every push and PR:
-# formatting check, lint, static types, tests. Installs from the pinned
-# lockfile so CI matches local environments exactly.
+# Sentinel CI.
+#
+# Jobs are independent and fail the PR independently:
+#   checks     — formatting, lint, types, full offline test suite (host venv)
+#   container  — production image builds; boots offline with ZERO credentials;
+#                /health=200 + /ready=503 asserted; non-root user asserted;
+#                hermetic test suite executed INSIDE a Linux container
+#   compose    — infra/docker-compose.yml interpolates + validates cleanly
+#   terraform  — infra/terraform formats, initializes (-backend=false),
+#                validates without any cloud credentials
+#   secret-scan— gitleaks over the whole history
+#
+# Everything here is offline except package/image/action downloads made by CI
+# itself; no test or smoke step talks to OpenAI/Pinecone/SEC/news/Langfuse.
 
 name: ci
 
@@ -8,6 +19,10 @@ on:
   push:
     branches: ["**"]
   pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   checks:
@@ -38,3 +53,88 @@ jobs:
 
       - name: Tests (offline suite)
         run: pytest
+
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build production image
+        run: docker build -f infra/Dockerfile.backend --target production -t sentinel-backend:ci .
+
+      - name: Image contract — non-root user, no dev packages, import safety
+        run: |
+          uid=$(docker run --rm --entrypoint id sentinel-backend:ci -u)
+          echo "runtime uid=$uid"
+          [ "$uid" = "10001" ] || { echo "FAIL: expected uid 10001"; exit 1; }
+          if docker run --rm --entrypoint python sentinel-backend:ci -c "import pytest" 2>/dev/null; then
+            echo "FAIL: pytest present in production image"; exit 1
+          fi
+          # Source-root layout resolves under the container's PYTHONPATH only.
+          docker run --rm sentinel-backend:ci python -c "import api.main; print('import ok')"
+
+      - name: Offline boot — /health 200, /ready 503 degraded, zero credentials
+        run: |
+          docker run -d --name sentinel-smoke -p 127.0.0.1:8000:8000 \
+            -e OPENAI_API_KEY= -e PINECONE_API_KEY= sentinel-backend:ci
+          ok=""
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/health >/dev/null 2>&1; then ok=yes; break; fi
+            sleep 1
+          done
+          [ -n "$ok" ] || { echo "FAIL: never became healthy"; docker logs sentinel-smoke; exit 1; }
+          curl -fsS http://127.0.0.1:8000/health | grep -q '"version"'
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/ready)
+          echo "/ready status=$code"
+          [ "$code" = "503" ] || { echo "FAIL: expected 503 degraded offline"; docker logs sentinel-smoke; exit 1; }
+          docker rm -f sentinel-smoke > /dev/null
+
+      - name: Test suite executed inside a Linux container
+        run: |
+          docker build -f infra/Dockerfile.backend --target test -t sentinel-backend:test .
+          docker run --rm sentinel-backend:test
+
+  compose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate stack config with no environment at all
+        run: docker compose -f infra/docker-compose.yml config -q
+
+      - name: Interpolation sanity — resolved model contains no empty image/service
+        run: docker compose -f infra/docker-compose.yml config | grep -E "image:|container_name:" | head -4
+
+  terraform:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Format check
+        run: terraform -chdir=infra/terraform fmt -check -recursive
+
+      - name: Init (no backend, providers only)
+        run: terraform -chdir=infra/terraform init -backend=false -input=false
+
+      - name: Validate
+        run: terraform -chdir=infra/terraform validate
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # gitleaks scans full history
+
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -19,7 +19,7 @@ import json
 from copy import deepcopy
 from datetime import date
 
-from config.settings import Settings, get_settings
+from config.settings import Settings, get_settings, resolve_secret
 from models.schemas import Chunk, RetrievedChunk
 from retrieval.base import VectorStore
 
@@ -204,7 +204,8 @@ class PineconeVectorStore(VectorStore):
         settings: Settings | None = None,
     ):
         self.settings = settings or get_settings()
-        self.api_key = api_key or self.settings.pinecone_api_key
+        # Resolve SecretStr once; downstream sees plain str | None as before.
+        self.api_key = api_key or resolve_secret(self.settings.pinecone_api_key)
         self.index_name = index_name or self.settings.pinecone_index_name
         self.namespace = namespace or self.settings.namespace  # dev/prod isolation
         self.dimension = dimension or self.settings.embedding_dimension

@@ -1,0 +1,38 @@
+# Build-context slimming for infra/Dockerfile.backend (context = repo root).
+# Secrets must never enter the context: .env* is excluded unconditionally so
+# a stray COPY cannot bake credentials into any layer.
+
+.git
+.gitignore
+.claude/
+.github/
+
+# Python environments and caches
+.venv/
+.venv-*/
+**/__pycache__/
+**/.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Secrets — hard exclusion, no negation on purpose
+.env
+.env.*
+*.pem
+*.key
+
+# Not part of the backend image
+docs/
+frontend/
+infra/terraform/
+node_modules/
+.next/
+
+# Docs and editor noise in the context
+*.md
+.idea/
+.vscode/
+.DS_Store

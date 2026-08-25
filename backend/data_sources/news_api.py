@@ -39,7 +39,7 @@ from urllib.parse import SplitResult, urlsplit
 
 import requests
 
-from config.settings import Settings, get_settings
+from config.settings import Settings, get_settings, resolve_secret
 from data_sources.base import DataSourceAdapter
 from models.schemas import RawDocument
 
@@ -216,6 +216,16 @@ def strip_query_string(url: str) -> str:
     return f"{parts.scheme}://{parts.netloc}{parts.path}"
 
 
+class NewsApiRequestError(RuntimeError):
+    """Provider request failed (non-retryable status, or retries exhausted).
+
+    Raised in place of the raw ``requests`` exception because requests embeds
+    the full request URL — query string included, and our query strings carry
+    the API key — in its message, which propagates into pipeline failure
+    records, API error envelopes, and logs.
+    """
+
+
 # --------------------------------------------------------------------------
 # Provider registry (extensible; spec 6.3 keeps this configurable)
 # --------------------------------------------------------------------------
@@ -293,7 +303,7 @@ class NewsApiAdapter(DataSourceAdapter):
         """Key presence check only — cheap and side-effect free per the base
         contract. An invalid-but-present key surfaces at fetch() time, where
         callers already degrade gracefully (spec 6.3)."""
-        return bool((self.settings.news_api_key or "").strip())
+        return bool((resolve_secret(self.settings.news_api_key) or "").strip())
 
     # -- public entry point -------------------------------------------------
 
@@ -347,7 +357,9 @@ class NewsApiAdapter(DataSourceAdapter):
         """Provider params + credentials. The apikey is added here, at the last
         moment, so no other code path handles or logs it."""
         query = self._spec.build_params(fetch_params)
-        query["apikey"] = self.settings.news_api_key
+        # Resolved from SecretStr here, at the last moment, so no other code
+        # path handles or logs the raw value.
+        query["apikey"] = resolve_secret(self.settings.news_api_key)
         return query
 
     # -- HTTP with bounded retries ---------------------------------------------
@@ -380,7 +392,10 @@ class NewsApiAdapter(DataSourceAdapter):
             except requests.HTTPError as exc:
                 status = getattr(exc.response, "status_code", None)
                 if status not in _RETRYABLE_STATUSES or attempt == self.max_retries:
-                    raise
+                    # Never re-raise: str(exc) embeds the credentialed URL.
+                    raise NewsApiRequestError(
+                        f"news provider returned HTTP {status} for {strip_query_string(url)}"
+                    ) from exc
                 headers = getattr(exc.response, "headers", None)
                 retry_after = headers.get("Retry-After") if headers is not None else None
                 delay = self._retry_delay(attempt, retry_after)
@@ -394,7 +409,11 @@ class NewsApiAdapter(DataSourceAdapter):
                 )
             except (requests.Timeout, requests.ConnectionError) as exc:
                 if attempt == self.max_retries:
-                    raise
+                    # ConnectionError messages can also embed the full URL.
+                    raise NewsApiRequestError(
+                        f"{type(exc).__name__} after {self.max_retries + 1} "
+                        f"attempts for {strip_query_string(url)}"
+                    ) from exc
                 delay = self._retry_delay(attempt, None)
                 logger.warning(
                     "News request failed (%s) for %s; retry %d/%d in %.1fs",

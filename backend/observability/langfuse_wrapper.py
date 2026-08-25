@@ -41,7 +41,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from config.settings import Settings, get_settings
+from config.settings import Settings, get_settings, resolve_secret
 
 logger = logging.getLogger(__name__)
 
@@ -335,14 +335,16 @@ class LangfuseTracer(Tracer):
 def build_langfuse_client(settings: Settings) -> Any | None:
     """Import and construct the Langfuse client, or None when unconfigured /
     package missing / construction fails. Never raises."""
-    if not (settings.langfuse_public_key and settings.langfuse_secret_key):
+    public_key = resolve_secret(settings.langfuse_public_key)
+    secret_key = resolve_secret(settings.langfuse_secret_key)
+    if not (public_key and secret_key):
         return None
     try:
         import langfuse  # deferred optional dependency
 
         return langfuse.Langfuse(
-            public_key=settings.langfuse_public_key,
-            secret_key=settings.langfuse_secret_key,
+            public_key=public_key,
+            secret_key=secret_key,
             host=settings.langfuse_host,
         )
     except Exception:  # noqa: BLE001 — any failure means "run without tracing"

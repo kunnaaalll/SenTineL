@@ -189,6 +189,36 @@ diagnostics (`node_errors`, ingestion keys) never enter response bodies.
 The APEX adapter remains unregistered and disabled (spec section 6.4) — it is
 not part of any request path.
 
+## Configuration & deployment model
+
+- **Settings** (`config/settings.py`): environment-first, then repo `.env`.
+  Credential fields are pydantic `SecretStr`; `resolve_secret()` converts to
+  plain text exactly once at SDK hand-off, so repr/logs/dumps never carry key
+  material. `SENTINEL_ENV=prod` fails construction unless
+  `production_blockers()` is empty (SEC contact email + OpenAI + Pinecone);
+  optional providers degrade gracefully everywhere.
+- **Live-EDGAR gate**: `SecEdgarAdapter.fetch` refuses to issue network I/O
+  while the SEC contact address is blank or an example.com-family placeholder
+  — SEC fair-access compliance is enforced at the point of use.
+- **Container** (`infra/Dockerfile.backend`): three stages — builder (venv
+  from `requirements-prod-lock.txt`, the runtime-only subset of the dev lock),
+  `test` (full dev lock; hermetic suite inside Linux), and `production`
+  (non-root uid 10001, read-only-FS compatible, `PYTHONPATH=/app/backend`
+  preserving the source-root import layout, exec-form uvicorn as PID 1,
+  bounded graceful shutdown, `/health` HEALTHCHECK).
+- **Compose** (`infra/docker-compose.yml`): backend-only stack that boots with
+  zero credentials; secrets arrive solely via optional `env_file`;
+  loopback-only port publishing; hardened runtime options. The frontend will
+  join as a sibling service in Phase 5.
+- **Terraform** (`infra/terraform/`): pinned, validated, resource-free AWS
+  skeleton — extension points only; nothing applied. Remote state stays an
+  explicitly-marked example until bootstrap.
+- **Contract tests**: `backend/tests/test_container_contract.py` pins the
+  image/compose/import-safety contracts inside the offline suite, so drift
+  fails `pytest` before it reaches CI's real build.
+
+Deep dives: `docs/DEPLOYMENT.md` (operations), `docs/API.md` (endpoints).
+
 ## Testing strategy
 
 Fully offline: fake providers (scripted outcomes), an in-memory vector store

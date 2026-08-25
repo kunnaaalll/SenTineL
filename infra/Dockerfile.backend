@@ -1,0 +1,107 @@
+# Sentinel backend — production image (spec section 14.1).
+#
+# Build from the REPO ROOT (the build context):
+#     docker build -f infra/Dockerfile.backend -t sentinel-backend:local .
+#
+# Layout contract: backend/ is a source root whose modules import absolutely
+# ("from models.schemas import Chunk"). The image bakes that in as
+# PYTHONPATH=/app/backend so `uvicorn api.main:app` resolves exactly like the
+# Makefile/CI do — no symlinks, no sys.path tricks at runtime.
+#
+# Configuration is environment-variables only (see .env.example); nothing
+# secret is baked into any layer. The only network access during build is the
+# base-image pull and the pinned dependency install.
+
+# ---------------------------------------------------------------------------
+# Stage 1 — dependency builder: venv from the runtime-only lockfile.
+# Kept separate so the runtime stage ships no pip cache, wheels, or compilers.
+# ---------------------------------------------------------------------------
+FROM python:3.11-slim-trixie AS builder
+
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+WORKDIR /build
+
+# Lockfile first: this layer stays cached while application source changes.
+COPY backend/requirements-prod-lock.txt .
+
+RUN python -m venv /opt/venv \
+    && /opt/venv/bin/pip install --no-cache-dir -r requirements-prod-lock.txt
+
+# ---------------------------------------------------------------------------
+# Stage 2 — offline unit-test runner (CI target; NOT built by default).
+#     docker build -f infra/Dockerfile.backend --target test -t sentinel-backend:test .
+# Installs the full runtime+dev lockfile and executes the hermetic suite
+# inside a Linux container — same code, no host dependencies. The production
+# stage below is untouched by this stage's extras.
+# ---------------------------------------------------------------------------
+FROM python:3.11-slim-trixie AS test
+
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+WORKDIR /build
+COPY backend/requirements-lock.txt .
+RUN python -m venv /opt/venv \
+    && /opt/venv/bin/pip install --no-cache-dir -r requirements-lock.txt
+
+ENV PATH="/opt/venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app/backend
+WORKDIR /app
+COPY backend/ ./backend/
+# The infrastructure contract tests assert against these repo-root files;
+# including them makes the suite fully self-verifying in this stage.
+# (The production stage deliberately ships none of them.)
+COPY infra/Dockerfile.backend infra/docker-compose.yml ./infra/
+COPY .dockerignore ./.dockerignore
+
+CMD ["python", "-m", "pytest", "-q"]
+
+# ---------------------------------------------------------------------------
+# Stage 3 — production runtime.
+# ---------------------------------------------------------------------------
+FROM python:3.11-slim-trixie AS production
+
+LABEL org.opencontainers.image.title="sentinel-backend" \
+      org.opencontainers.image.description="Sentinel agentic financial research copilot API" \
+      org.opencontainers.image.source="https://github.com/kunalparmar/sentinel"
+
+ENV PATH="/opt/venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app/backend
+
+# Unprivileged runtime identity: fixed high UID/GID, no login shell. Source
+# and venv stay root-owned/read-only to the app — the process cannot modify
+# its own code. All writable state goes to /tmp (mounted as a tmpfs by
+# docker-compose.yml; the root filesystem is read-only there).
+RUN groupadd --gid 10001 sentinel \
+    && useradd --uid 10001 --gid sentinel --create-home --home-dir /home/sentinel \
+       --shell /usr/sbin/nologin sentinel
+
+COPY --from=builder /opt/venv /opt/venv
+
+WORKDIR /app
+COPY backend/ ./backend/
+# Tests and their fixtures are dev artifacts, not runtime payload.
+RUN rm -rf backend/tests
+
+USER sentinel:sentinel
+
+EXPOSE 8000
+
+# Liveness: the process answers HTTP at all (never touches credentials).
+# Deep dependency readiness lives in GET /ready and returns 503 while
+# providers are unconfigured — see docs/DEPLOYMENT.md.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD ["python", "-c", "import sys,urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)"]
+
+# exec form => uvicorn is PID 1 and receives SIGTERM directly. It stops
+# accepting connections, drains in-flight requests, and runs the app
+# lifespan's tracer-flush hook; --timeout-graceful-shutdown bounds the drain
+# so a stuck request cannot hang the container past stop_grace_period.
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--timeout-graceful-shutdown", "20"]

@@ -17,9 +17,19 @@ run:
 
 serve: run
 
-# Regenerate backend/requirements-lock.txt from the current venv.
+# Regenerate backend/requirements-lock.txt (runtime+dev) from the current venv,
+# then derive backend/requirements-prod-lock.txt — the runtime-only subset the
+# production image installs. The -c constraint pins the prod closure to exactly
+# the versions resolved for dev, so image and CI environments never diverge.
+PROD_LOCK_VENV := .venv-prod-lock
 lock:
 	$(PIP) freeze | grep -vE '^(pip|setuptools|wheel)==' > backend/requirements-lock.txt
+	rm -rf $(PROD_LOCK_VENV)
+	$(PY) -m venv $(PROD_LOCK_VENV)
+	$(PROD_LOCK_VENV)/bin/pip install --upgrade pip -q
+	$(PROD_LOCK_VENV)/bin/pip install -q -r backend/requirements.txt -c backend/requirements-lock.txt
+	$(PROD_LOCK_VENV)/bin/pip freeze | grep -vE '^(pip|setuptools|wheel)==' > backend/requirements-prod-lock.txt
+	rm -rf $(PROD_LOCK_VENV)
 
 test:
 	$(VENV)/bin/python -m pytest

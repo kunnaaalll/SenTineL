@@ -16,6 +16,7 @@ import data_sources.news_api as news_module
 from config.settings import Settings
 from data_sources.news_api import (
     NewsApiAdapter,
+    NewsApiRequestError,
     content_hash,
     normalize_symbol,
     parse_fmp_articles,
@@ -345,20 +346,20 @@ class TestHttpFailureSemantics:
 
     def test_authentication_error_never_retried(self, no_sleep):
         session = FakeNewsSession([FakeResponse(status_code=401)] * 5)
-        with pytest.raises(requests.HTTPError, match="401"):
+        with pytest.raises(NewsApiRequestError, match="HTTP 401"):
             make_adapter(session).fetch({"ticker": "AAPL"})
         assert len(session.calls) == 1  # surfaced immediately
         assert no_sleep == []
 
     def test_forbidden_error_never_retried(self, no_sleep):
         session = FakeNewsSession([FakeResponse(status_code=403)] * 5)
-        with pytest.raises(requests.HTTPError, match="403"):
+        with pytest.raises(NewsApiRequestError, match="HTTP 403"):
             make_adapter(session).fetch({"ticker": "AAPL"})
         assert len(session.calls) == 1
 
     def test_invalid_request_400_never_retried(self, no_sleep):
         session = FakeNewsSession([FakeResponse(status_code=400)] * 5)
-        with pytest.raises(requests.HTTPError, match="400"):
+        with pytest.raises(NewsApiRequestError, match="HTTP 400"):
             make_adapter(session).fetch({"ticker": "AAPL"})
         assert len(session.calls) == 1
 
@@ -379,6 +380,28 @@ class TestHttpFailureSemantics:
         docs = make_adapter(session).fetch({"ticker": "AAPL"})
         assert docs == []
 
+    def test_error_message_carries_no_credentials(self, no_sleep):
+        """requests.HTTPError embeds the full URL — query string included,
+        and our query strings carry the apikey. The surfaced error must be
+        sanitized while the raw exception stays chained for debugging."""
+        session = FakeNewsSession([FakeResponse(status_code=401)])
+        with pytest.raises(NewsApiRequestError) as excinfo:
+            make_adapter(session).fetch({"ticker": "AAPL"})
+        message = str(excinfo.value)
+        assert "test-key-123" not in message
+        assert "apikey" not in message and "?" not in message
+        assert isinstance(excinfo.value.__cause__, requests.HTTPError)
+
+    def test_connection_error_exhaustion_also_sanitized(self, no_sleep):
+        class DeadSession(FakeNewsSession):
+            def get(self, url, params=None, timeout=None):
+                raise requests.ConnectionError(f"refused for {url}?apikey=test-key-123")
+
+        with pytest.raises(NewsApiRequestError) as excinfo:
+            make_adapter(DeadSession([])).fetch({"ticker": "AAPL"})
+        message = str(excinfo.value)
+        assert "test-key-123" not in message and "?" not in message
+
 
 # --------------------------------------------------------------------------
 # Secret hygiene
@@ -395,7 +418,7 @@ class TestSecretHygiene:
                 FakeResponse(status_code=401),
             ]
         )
-        with pytest.raises(requests.HTTPError):
+        with pytest.raises(NewsApiRequestError):
             make_adapter(session).fetch({"ticker": "AAPL"})
         assert caplog.text
         assert "test-key-123" not in caplog.text

@@ -4,6 +4,10 @@
 
 -r requirements.txt
 
+# Test runner (kept out of requirements.txt so the production image never
+# installs it — see infra/Dockerfile.backend)
+pytest>=8.0
+
 # API test client (fastapi TestClient needs httpx)
 httpx>=0.27,<1
 

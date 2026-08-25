@@ -1,0 +1,73 @@
+# Sentinel standalone local stack (spec section 14.1).
+#
+#   offline start:    cd <repo-root> && docker compose -f infra/docker-compose.yml up --build
+#   provider-enabled: cp .env.example .env, fill in credentials, same command
+#
+# Scope: backend ONLY. No APEX (Sentinel must run fully standalone), no
+# frontend service yet — the Phase 5 Next.js UI will be added as a sibling
+# service talking to this one over REST (see docs/DEPLOYMENT.md).
+#
+# Configuration channels (deliberate):
+#   * Everything the CONTAINER needs — credentials and non-secret tunables
+#     alike — flows ONLY through env_file (../.env) or settings.py defaults.
+#     There is no `environment:` block on purpose: Compose gives environment:
+#     precedence over env_file:, so an interpolated empty-string fallback
+#     there could silently shadow a value set in .env. Offline boot works
+#     because every tunable has a safe default in config/settings.py.
+#   * The three knobs Compose itself consumes (SENTINEL_IMAGE_TAG,
+#     SENTINEL_API_BIND, SENTINEL_API_PORT) are interpolated from the shell
+#     or infra/.env (the project directory), NOT from ../.env.
+#
+# Requires: Docker Compose v2.24+ (env_file.required).
+
+name: sentinel
+
+services:
+  backend:
+    build:
+      context: ..
+      # Default target is the final stage ("production"); the dev/test image
+      # is an explicit override only (--target test) and never runs here.
+      dockerfile: infra/Dockerfile.backend
+    image: sentinel-backend:${SENTINEL_IMAGE_TAG:-local}
+    container_name: sentinel-backend
+
+    # v1 ships NO authentication (spec section 17): publish on loopback only.
+    # For a private-network deployment set SENTINEL_API_BIND explicitly.
+    ports:
+      - "${SENTINEL_API_BIND:-127.0.0.1}:${SENTINEL_API_PORT:-8000}:8000"
+
+    # All credential material and tunables flow through here. The file is
+    # optional so the stack boots offline with zero configuration.
+    env_file:
+      - path: ../.env
+        required: false
+
+    restart: unless-stopped
+
+    # uvicorn drains up to --timeout-graceful-shutdown 20s; give the engine
+    # headroom above that so SIGKILL never preempts an in-progress drain.
+    stop_grace_period: 25s
+
+    # Hardening: immutable root filesystem, no privilege escalation, all
+    # capabilities dropped; writable state confined to a bounded tmpfs.
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    networks:
+      - sentinel
+
+networks:
+  sentinel:
+    driver: bridge

@@ -150,6 +150,10 @@ def _edgar_routes() -> dict[str, FakeResponse]:
 def _adapter(session: FakeSession) -> SecEdgarAdapter:
     adapter = SecEdgarAdapter(session=session)
     adapter._min_interval = 0.0  # no throttle in tests
+    # These tests exercise live-EDGAR-shaped fetch paths against a fake HTTP
+    # session; the placeholder-contact guard (see SecEdgarAdapter.fetch) must
+    # see a configured address to let them through.
+    adapter.settings.sec_contact_email = "sentinel-tests@dev.null"
     return adapter
 
 

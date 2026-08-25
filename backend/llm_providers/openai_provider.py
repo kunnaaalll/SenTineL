@@ -15,7 +15,7 @@ import logging
 import time
 from typing import Any
 
-from config.settings import Settings, get_settings
+from config.settings import Settings, get_settings, resolve_secret
 from llm_providers.base import (
     AuthenticationError,
     BaseProvider,
@@ -109,7 +109,11 @@ class OpenAIProvider(BaseProvider):
         settings: Settings | None = None,
     ):
         self.settings = settings or get_settings()
-        self.api_key = api_key if api_key is not None else self.settings.openai_api_key
+        # Resolve SecretStr once; everything downstream sees plain str | None
+        # exactly as before (availability booleans, SDK hand-off).
+        self.api_key = (
+            api_key if api_key is not None else resolve_secret(self.settings.openai_api_key)
+        )
         self.generation_model = generation_model or self.settings.openai_generation_model
         self.embedding_model = embedding_model or self.settings.openai_embedding_model
         self.timeout_seconds = (

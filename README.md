@@ -4,7 +4,17 @@ Agentic financial research copilot — RAG over SEC filings, earnings-call trans
 
 Full architecture, API contracts, and build phases: see `SENTINEL_SPEC.md`. Phase 2 deep-dive: `docs/ARCHITECTURE.md`, `docs/API.md`. Phase 3 deep-dive: `docs/AGENT_DESIGN.md`.
 
-## Status: Phase 3 — production news adapter, LangGraph agent team, routed API
+## Status: Phase 3 + infrastructure foundations
+
+Latest milestone (Phase 3 code unchanged): Git initialized, backend
+containerized (`infra/Dockerfile.backend`), offline-capable Compose stack,
+production config hardening (fail-fast prod mode, SecretStr credentials,
+live-EDGAR contact gate), Terraform skeleton under `infra/terraform/`, and a
+five-job CI pipeline including in-container tests and secret scanning.
+**No cloud resources were provisioned** — deployment remains future work.
+See `docs/DEPLOYMENT.md`.
+
+Previously — Phase 3: production news adapter, LangGraph agent team, routed API:
 
 Implemented:
 
@@ -14,21 +24,41 @@ Implemented:
 - Phase 2: provider fallback engine, Langfuse-or-noop tracing, ingestion pipeline, simple RAG chain with enforced citations.
 - Phase 1 (data layer): SEC EDGAR adapter (retry/backoff), financial chunker, Pinecone store (`delete_source` + metadata cap).
 
-Not yet (later phases): frontend chat UI, Docker/Terraform deploy, auth, APEX adapter, fine-tuning.
+Not yet (later phases): frontend chat UI, real cloud deployment, auth, APEX adapter, fine-tuning.
 
 ## Setup
 
 ```bash
 make setup            # creates .venv (Python 3.11) and installs backend/requirements-dev.txt
-cp .env.example .env  # fill in what you have — everything optional except for live use
+cp .env.example .env  # optional — an empty file is a valid offline configuration
 ```
+
+### Docker quickstart
+
+The backend ships as a hardened production image (non-root, read-only-FS
+compatible, locked runtime-only dependencies) with a local Compose stack:
+
+```bash
+# fully offline — no credentials needed to boot:
+docker compose -f infra/docker-compose.yml up --build
+
+# provider-enabled: put credentials in the gitignored .env first
+cp .env.example .env   # fill in OPENAI_API_KEY / PINECONE_API_KEY / ...
+docker compose -f infra/docker-compose.yml up --build
+```
+
+`/health` is 200 while the process lives; `/ready` returns 503 until the
+embedding provider + vector store are configured. The stack publishes on
+127.0.0.1 only — v1 has no auth. Details, image contract, and Terraform
+workflow: `docs/DEPLOYMENT.md`.
 
 Runtime dependencies live in `backend/requirements.txt`; dev tools in
 `backend/requirements-dev.txt`. Reproducible installs use the pinned
-`backend/requirements-lock.txt` — regenerate with `make lock` after changing
-either requirements file. `langfuse` is intentionally optional: install it
-yourself to enable tracing. `langgraph` (Phase 3 agent graph) is a normal
-dependency and works fully offline.
+`backend/requirements-lock.txt`, and the production image installs the
+runtime-only subset `backend/requirements-prod-lock.txt` — regenerate both
+with `make lock` after changing either requirements file. `langfuse` is
+intentionally optional: install it yourself to enable tracing. `langgraph`
+(Phase 3 agent graph) is a normal dependency and works fully offline.
 
 ### News provider configuration
 
@@ -71,14 +101,24 @@ annotated with provider, model, usage, latency, and estimated cost.
 
 ### SEC contact email
 
-SEC requires a descriptive User-Agent with a genuine contact address. Before
-any live EDGAR usage, set in `.env`:
+SEC requires a descriptive User-Agent with a genuine contact address. The
+placeholder default is refused for **live EDGAR use in every environment**
+(`SecEdgarAdapter.fetch` raises before any network call), and
+`SENTINEL_ENV=prod` refuses to boot without it. Set in `.env`:
 
 ```
 SEC_CONTACT_EMAIL=you@yourdomain.com
 ```
 
 The placeholder default risks an IP ban under SEC fair-access enforcement.
+
+### Production fail-fast mode
+
+With `SENTINEL_ENV=prod`, configuration validation requires `SEC_CONTACT_EMAIL`,
+`OPENAI_API_KEY`, and `PINECONE_API_KEY`; anything missing aborts startup with
+a message naming each variable. Optional providers (news, Langfuse, APEX,
+Ollama) stay optional everywhere and degrade gracefully. All credential fields
+are pydantic `SecretStr` — logging or repr-ing settings never exposes values.
 
 ## Run the API
 
@@ -126,15 +166,20 @@ make typecheck   # mypy
 make check       # all of the above + tests
 ```
 
-CI (`.github/workflows/ci.yml`) runs the same gates on every push/PR against
-Python 3.11 from the lockfile. Pre-commit hooks (`make hooks`, after `git init`)
-run the fast subset locally.
+CI (`.github/workflows/ci.yml`) runs five independent jobs on every push/PR:
+host quality gates (ruff/mypy/pytest from the lockfile), production image
+build + contract checks (non-root UID, no dev packages, import safety,
+offline boot asserting `/health`=200 and `/ready`=503), the test suite
+executed inside a Linux container, compose config validation, Terraform
+fmt/init/validate, and gitleaks secret scanning. Pre-commit hooks
+(`make hooks`) run the fast subset locally.
 
 ## Layout
 
 Repository structure mirrors `SENTINEL_SPEC.md` section 4: `backend/` (API +
-pipelines), `frontend/` (Next.js chat UI, Phase 5), `infra/` (Docker +
-Terraform, Phase 5), `docs/`.
+pipelines), `frontend/` (Next.js chat UI, Phase 5 — placeholder dirs only
+today), `infra/` (`Dockerfile.backend`, `docker-compose.yml`, and a
+resource-free Terraform skeleton in `terraform/`), `docs/`.
 
 Sentinel is fully standalone — no dependency on any other project. The
 optional APEX adapter (Phase 6) is disabled by default and never a hard
