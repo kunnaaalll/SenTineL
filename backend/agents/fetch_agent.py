@@ -173,13 +173,23 @@ class FetchAgent:
         for source_type in plan.source_types:
             adapter = self.adapters.get(source_type)
             adapter_name = getattr(adapter, "name", source_type)
-            if any(c.source_type == source_type for c in retrieved.values()):
-                continue
             if adapter is None or not adapter.is_available():
                 reason = "not configured" if adapter is None else "unavailable (missing API key)"
                 unavailable.append(f"{adapter_name}: {reason}")
                 continue
             for ticker in plan.tickers[:2]:  # cap live work per source type
+                ticker_has_chunks = any(
+                    c.source_type == source_type
+                    and (
+                        getattr(c, "ticker", None) == ticker
+                        or c.metadata.get("ticker") == ticker
+                        or (c.source_id and f":{ticker}:" in c.source_id)
+                        or (ticker in c.entities)
+                    )
+                    for c in retrieved.values()
+                )
+                if ticker_has_chunks:
+                    continue
                 key = f"{ticker}:{source_type}"
                 if key in ingested_keys:
                     continue
