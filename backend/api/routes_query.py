@@ -13,7 +13,7 @@ from fastapi import APIRouter, Request
 
 from api.errors import ApiError
 from api.schemas import QueryRequest
-from llm_providers.base import ProviderUnavailableError
+from llm_providers.base import InvalidRequestError, ProviderUnavailableError
 from models.schemas import Citation, QueryResponse
 from observability.metrics import METRICS
 
@@ -67,6 +67,10 @@ def _run_query(request: Request, body: QueryRequest, *, force_agents: bool) -> Q
         # Only the simple path can surface this; the agent path degrades to a
         # grounded digest instead of raising.
         raise ApiError(503, "no_llm_provider", str(exc)) from exc
+    except InvalidRequestError as exc:
+        duration_ms = (time.perf_counter() - start_t) * 1000.0
+        METRICS.record_query(query_type, duration_ms, 0, ok=False)
+        raise ApiError(400, "invalid_llm_request", str(exc)) from exc
     except Exception:
         duration_ms = (time.perf_counter() - start_t) * 1000.0
         METRICS.record_query(query_type, duration_ms, 0, ok=False)
