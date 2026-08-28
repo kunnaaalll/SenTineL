@@ -17,10 +17,9 @@
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Standalone output: the production image ships only the pruned runtime
-  // tree (.next/standalone + .next/static), keeping the container small and
-  // free of build tooling.
-  output: "standalone",
+  // Standalone output is for containerized/Docker builds; Vercel native builds
+  // expect standard serverless output.
+  output: process.env.VERCEL ? undefined : "standalone",
   reactStrictMode: true,
 
   async rewrites() {
