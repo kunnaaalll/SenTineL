@@ -50,12 +50,14 @@ def _run_query(request: Request, body: QueryRequest, *, force_agents: bool) -> Q
 
     start_t = time.perf_counter()
     query_type = "multi_hop" if force_agents else "classified"
+    history_dicts = [t.model_dump() for t in body.history] if body.history else None
     try:
         result = service.answer(
             body.question,
             force_agents=force_agents,
             top_k=body.top_k,
             filters=body.filters.to_store_filters() if body.filters else None,
+            history=history_dicts,
         )
         if "compare" in result.agent_path or "extract" in result.agent_path:
             query_type = "multi_hop"

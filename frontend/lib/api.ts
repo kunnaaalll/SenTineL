@@ -59,10 +59,16 @@ export interface QueryFilters {
   date_end?: string;
 }
 
+export interface ChatTurn {
+  role: "user" | "assistant" | "system";
+  content: string;
+}
+
 export interface QueryRequest {
   question: string;
   top_k?: number;
   filters?: QueryFilters;
+  history?: ChatTurn[];
 }
 
 export interface IngestionFailure {

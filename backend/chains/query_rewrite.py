@@ -81,9 +81,9 @@ class QueryRewriter:
             frozenset(known_tickers) if known_tickers is not None else BUILTIN_TICKERS
         )
 
-    def rewrite(self, question: str) -> RewriteResult:
+    def rewrite(self, question: str, history: list[dict] | None = None) -> RewriteResult:
         """Normalize a question. Never raises; never returns an empty query."""
-        result = self._rewrite_heuristic(question)
+        result = self._rewrite_heuristic(question, history=history)
         if self.settings.enable_llm_query_rewrite and self.engine is not None:
             try:
                 return self._rewrite_llm(question, result)
@@ -93,7 +93,9 @@ class QueryRewriter:
 
     # -- deterministic ----------------------------------------------------------
 
-    def _rewrite_heuristic(self, question: str) -> RewriteResult:
+    def _rewrite_heuristic(
+        self, question: str, history: list[dict] | None = None
+    ) -> RewriteResult:
         cleaned = re.sub(r"\s+", " ", question).strip()
 
         filler_removed = True
@@ -106,6 +108,40 @@ class QueryRewriter:
                     filler_removed = True
 
         tickers = self._detect_tickers(cleaned)
+
+        # Context-aware follow-up resolution:
+        # If no ticker is mentioned in current query, look back at recent conversation turns
+        if not tickers and history:
+            for turn in reversed(history):
+                content = (
+                    turn.get("content", "")
+                    if isinstance(turn, dict)
+                    else getattr(turn, "content", "")
+                )
+                prev_tickers = self._detect_tickers(content)
+                if prev_tickers:
+                    tickers = prev_tickers
+                    # Prepend context to help retrieval if the query is very short or referential
+                    cleaned_lower = cleaned.lower()
+                    words = cleaned_lower.split()
+                    if len(words) <= 6 or any(
+                        w in words
+                        for w in (
+                            "it",
+                            "its",
+                            "their",
+                            "that",
+                            "this",
+                            "do",
+                            "how",
+                            "what",
+                            "and",
+                            "why",
+                            "more",
+                        )
+                    ):
+                        cleaned = f"{tickers[0]} {cleaned}"
+                    break
 
         # Normalize cashtags to canonical uppercase so embeddings see one form.
         rewritten = _DOLLAR_TICKER_RE.sub(lambda m: f"${m.group(1).upper()}", cleaned)

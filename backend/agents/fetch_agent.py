@@ -80,9 +80,42 @@ class QueryPlanner:
                 ordered.append(ticker)
         return ordered
 
-    def plan(self, question: str) -> QueryPlan:
+    def plan(self, question: str, history: list[dict] | None = None) -> QueryPlan:
         cleaned = re.sub(r"\s+", " ", question).strip()
         tickers = self.detect_tickers(cleaned)
+
+        # Context-aware follow-up resolution:
+        if not tickers and history:
+            for turn in reversed(history):
+                content = (
+                    turn.get("content", "")
+                    if isinstance(turn, dict)
+                    else getattr(turn, "content", "")
+                )
+                prev_tickers = self.detect_tickers(content)
+                if prev_tickers:
+                    tickers = prev_tickers
+                    # Enrich query if it's very short or referential
+                    cleaned_lower = cleaned.lower()
+                    words = cleaned_lower.split()
+                    if len(words) <= 6 or any(
+                        w in words
+                        for w in (
+                            "it",
+                            "its",
+                            "their",
+                            "that",
+                            "this",
+                            "do",
+                            "how",
+                            "what",
+                            "and",
+                            "why",
+                            "more",
+                        )
+                    ):
+                        cleaned = f"{tickers[0]} {cleaned}"
+                    break
 
         years = sorted({int(y) for y in _YEAR_RE.findall(cleaned)})
         date_range = None
@@ -133,7 +166,7 @@ class FetchAgent:
         trace = self.tracer.start_trace(
             "agent_fetch", input={"query": state.get("query", "")[:512]}
         )
-        plan = self.planner.plan(state.get("query", ""))
+        plan = self.planner.plan(state.get("query", ""), history=state.get("history"))
         updates: dict = {
             "tickers": plan.tickers,
             "agent_path": [*state.get("agent_path", []), self.name],

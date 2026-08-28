@@ -108,6 +108,7 @@ class RagChain:
         *,
         top_k: int | None = None,
         filters: dict | None = None,
+        history: list[dict] | None = None,
     ) -> RagAnswer:
         k = top_k or self.settings.rag_top_k
         trace = self.tracer.start_trace("rag_query", input={"question": question[:512]})
@@ -118,7 +119,10 @@ class RagChain:
         rewrite_filters: dict = {}
         if self.rewriter is not None:
             with trace.span("rewrite"):
-                result = self.rewriter.rewrite(question)
+                try:
+                    result = self.rewriter.rewrite(question, history=history)
+                except TypeError:
+                    result = self.rewriter.rewrite(question)
             rewritten = result.rewritten
             rewrite_filters = result.filters
             path.append("rewrite")
@@ -157,7 +161,29 @@ class RagChain:
             excerpt_chars=self.settings.rag_excerpt_chars,
             budget_chars=self.settings.rag_context_char_budget,
         )
-        prompt = f"Question: {rewritten}\n\nExcerpts:\n{context}\n\nAnswer:"
+        history_context = ""
+        if history:
+            recent_turns = []
+            for turn in history[-4:]:
+                r = (
+                    "User"
+                    if (turn.get("role") if isinstance(turn, dict) else getattr(turn, "role", ""))
+                    == "user"
+                    else "Assistant"
+                )
+                t = (
+                    turn.get("content", "")
+                    if isinstance(turn, dict)
+                    else getattr(turn, "content", "")
+                )
+                if t:
+                    recent_turns.append(f"{r}: {t[:300]}")
+            if recent_turns:
+                history_context = (
+                    "Previous conversation context:\n" + "\n".join(recent_turns) + "\n\n"
+                )
+
+        prompt = f"{history_context}Question: {rewritten}\n\nExcerpts:\n{context}\n\nAnswer:"
         try:
             with trace.span("generate", provider=self._generation_provider()):
                 response: GenerationResult = self.engine.generate(

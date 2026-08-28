@@ -80,7 +80,16 @@ export function ChatWindow() {
     abortRef.current = controller;
 
     try {
-      const request = { question };
+      const history = messages
+        .filter((m) => m.status === "complete" && (m.role === "user" || m.answer))
+        .map((m) => ({
+          role: m.role as "user" | "assistant",
+          content: m.role === "user" ? m.question : (m.answer ?? ""),
+        }));
+      const request = {
+        question,
+        ...(history.length > 0 ? { history } : {}),
+      };
       const response = forceAgents
         ? await askAgentsQuery(request, { signal: controller.signal, timeoutMs: QUERY_TIMEOUT_MS })
         : await askQuery(request, { signal: controller.signal, timeoutMs: QUERY_TIMEOUT_MS });

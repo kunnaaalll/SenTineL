@@ -52,10 +52,16 @@ class QueryFilters(BaseModel):
         return filters
 
 
+class ChatTurn(BaseModel):
+    role: str = Field(pattern=r"^(user|assistant|system)$")
+    content: str = Field(min_length=1, max_length=10000)
+
+
 class QueryRequest(BaseModel):
     question: str = Field(min_length=1, max_length=4000)
     top_k: int | None = Field(default=None, ge=1, le=20)
     filters: QueryFilters | None = None
+    history: list[ChatTurn] | None = None
 
 
 class IngestRequest(BaseModel):

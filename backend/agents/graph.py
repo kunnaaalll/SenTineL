@@ -234,11 +234,17 @@ class SentinelQueryService:
         force_agents: bool = False,
         top_k: int | None = None,
         filters: dict | None = None,
+        history: list[dict] | None = None,
     ) -> AnswerResult:
         query_type = "multi_hop" if force_agents else self.classify(question)
 
         if query_type == "simple":
-            rag_result: RagAnswer = self.rag_chain.run(question, top_k=top_k, filters=filters)
+            try:
+                rag_result: RagAnswer = self.rag_chain.run(
+                    question, top_k=top_k, filters=filters, history=history
+                )
+            except TypeError:
+                rag_result = self.rag_chain.run(question, top_k=top_k, filters=filters)
             return AnswerResult(
                 answer=rag_result.answer,
                 citations=rag_result.citations,
@@ -248,7 +254,9 @@ class SentinelQueryService:
                 insufficient_evidence=rag_result.insufficient_evidence,
             )
 
-        state = initial_state(question, force_agents=True, query_type="multi_hop")
+        state = initial_state(
+            question, force_agents=True, query_type="multi_hop", history=history
+        )
         trace = self.tracer.start_trace(
             "agents_query", input={"question": question[:512], "forced": force_agents}
         )

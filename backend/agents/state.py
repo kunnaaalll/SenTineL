@@ -71,6 +71,7 @@ class AgentState(TypedDict, total=False):
     agent_path: list[str]
     force_agents: bool
     tickers: list[str]
+    history: list[dict]
     unavailable_sources: list[str]
     node_errors: list[dict]
     ingested_keys: list[str]
@@ -83,9 +84,10 @@ def initial_state(
     *,
     force_agents: bool = False,
     query_type: QueryType = "multi_hop",
+    history: list[dict] | None = None,
 ) -> AgentState:
     """A fully-initialized state so every node sees all keys it may read."""
-    return AgentState(
+    state = AgentState(
         query=query,
         query_type=query_type,
         retrieved_chunks=[],
@@ -103,6 +105,9 @@ def initial_state(
         limitations=[],
         trace_urls=[],
     )
+    if history:
+        state["history"] = list(history)
+    return state
 
 
 def unique_chunks(chunks: list[RetrievedChunk]) -> list[RetrievedChunk]:
