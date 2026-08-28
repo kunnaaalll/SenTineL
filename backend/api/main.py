@@ -187,6 +187,9 @@ def create_app(
         application.add_middleware(
             TrustedHostMiddleware, allowed_hosts=resolved_settings.parsed_allowed_hosts
         )
+    application.add_middleware(SecurityHeadersMiddleware, settings=resolved_settings)
+    application.add_middleware(RequestIdMiddleware)
+    application.add_middleware(MetricsMiddleware)
     cors_origins = resolved_settings.parsed_cors_origins
     cors_kwargs: dict = {
         "allow_credentials": True,
@@ -199,9 +202,6 @@ def create_app(
     else:
         cors_kwargs["allow_origins"] = cors_origins
     application.add_middleware(CORSMiddleware, **cors_kwargs)
-    application.add_middleware(SecurityHeadersMiddleware, settings=resolved_settings)
-    application.add_middleware(RequestIdMiddleware)
-    application.add_middleware(MetricsMiddleware)
 
     # Routes & Error Handling
     application.include_router(query_router)
