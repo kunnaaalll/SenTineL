@@ -118,7 +118,16 @@ class OpenAIProvider(BaseProvider):
         )
         self.api_key = resolved_key.strip().strip("'\"") if resolved_key else None
         resolved_base = base_url if base_url is not None else self.settings.openai_base_url
-        self.base_url = resolved_base.strip().strip("'\"").rstrip("/") if resolved_base else None
+        if resolved_base:
+            cleaned_base = resolved_base.strip().strip("'\"").rstrip("/")
+            if "groq.com" in cleaned_base.lower():
+                self.base_url = "https://api.groq.com/openai/v1"
+            elif "x.ai" in cleaned_base.lower():
+                self.base_url = "https://api.x.ai/v1"
+            else:
+                self.base_url = cleaned_base
+        else:
+            self.base_url = None
 
         default_gen_model = self.settings.openai_generation_model
         if self.base_url and "groq.com" in self.base_url.lower() and default_gen_model in ("gpt-4o-mini", "gpt-4o", "gpt-4"):
@@ -196,15 +205,16 @@ class OpenAIProvider(BaseProvider):
             for fallback_m in [
                 "llama-3.3-70b-versatile",
                 "llama-3.1-8b-instant",
-                "llama3-70b-8192",
-                "llama3-8b-8192",
-                "mixtral-8x7b-32768",
+                "qwen/qwen3.8-27b",
+                "openai/gpt-oss-120b",
+                "openai/gpt-oss-20b",
             ]:
                 if fallback_m not in models_to_try:
                     models_to_try.append(fallback_m)
 
         started = time.perf_counter()
         last_exc: BaseException | None = None
+        attempt_log: list[str] = []
 
         for model_candidate in models_to_try:
             kwargs["model"] = model_candidate
@@ -225,6 +235,7 @@ class OpenAIProvider(BaseProvider):
             except Exception as exc:  # noqa: BLE001
                 last_exc = exc
                 exc_status = _response_status(exc)
+                attempt_log.append(f"{model_candidate} ({exc_status}): {exc}")
                 # Only retry alternate models on 404 / NotFoundError
                 if exc_status != 404 and "notfound" not in type(exc).__name__.lower():
                     break
@@ -235,8 +246,9 @@ class OpenAIProvider(BaseProvider):
                 )
 
         classified = classify_sdk_exception(last_exc or RuntimeError("Unknown generation failure"))
+        attempts_summary = "; ".join(attempt_log) if attempt_log else str(last_exc)
         classified.args = (
-            f"{classified} (model={self.generation_model}, base_url={self.base_url})",
+            f"{classified} [attempts: {attempts_summary}] (base_url={self.base_url})",
         )
         raise classified from last_exc
 
