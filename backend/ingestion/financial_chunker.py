@@ -207,13 +207,14 @@ def chunk_document(
             # validation, so post-construction mutation would be lost.
             metadata["footnotes"] = list(pending_footnotes)
             pending_footnotes.clear()
+        chunk_text = f"[{section}]\n{text}" if section and not text.startswith("[") else text
         chunk = Chunk(
             chunk_id=_chunk_id(doc.source_id, section, ordinal),
             source_id=doc.source_id,
             source_type=doc.source_type,
             section=section,
             page_or_position=page_or_position,
-            text=text,
+            text=chunk_text,
             entities=[],  # entity_extractor arrives in a later phase
             metadata=metadata,
         )
