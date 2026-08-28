@@ -116,7 +116,13 @@ class OpenAIProvider(BaseProvider):
             api_key if api_key is not None else resolve_secret(self.settings.openai_api_key)
         )
         self.base_url = base_url if base_url is not None else self.settings.openai_base_url
-        self.generation_model = generation_model or self.settings.openai_generation_model
+        default_gen_model = self.settings.openai_generation_model
+        if self.base_url and "groq.com" in self.base_url.lower() and default_gen_model in ("gpt-4o-mini", "gpt-4o", "gpt-4"):
+            default_gen_model = "llama-3.3-70b-versatile"
+        elif self.base_url and "x.ai" in self.base_url.lower() and default_gen_model in ("gpt-4o-mini", "gpt-4o", "gpt-4"):
+            default_gen_model = "grok-2-latest"
+
+        self.generation_model = generation_model or default_gen_model
         self.embedding_model = embedding_model or self.settings.openai_embedding_model
         self.timeout_seconds = (
             timeout_seconds if timeout_seconds is not None else self.settings.llm_timeout_seconds
