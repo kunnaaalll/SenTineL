@@ -296,39 +296,44 @@ class OpenAIProvider(BaseProvider):
                 from pinecone import Pinecone
 
                 pc = Pinecone(api_key=pinecone_key)
-                res = pc.inference.embed(
-                    model="multilingual-e5-large",
-                    inputs=texts,
-                    parameters={"input_type": "passage", "truncate": "END"},
-                )
-                latency = measure_latency_ms(started)
                 dim = self.settings.embedding_dimension
                 results = []
-                data = getattr(res, "data", []) or []
-                for index, item in enumerate(data):
-                    vec = list(getattr(item, "values", []) or [])
-                    if len(vec) < dim:
-                        vec = vec + [0.0] * (dim - len(vec))
-                    elif len(vec) > dim:
-                        vec = vec[:dim]
-                    results.append(
-                        EmbeddingResult(
-                            vector=vec,
-                            text_index=index,
-                            provider="pinecone-inference",
-                            model="multilingual-e5-large",
-                            usage=TokenUsage(
-                                prompt_tokens=len(texts[index].split()),
-                                total_tokens=len(texts[index].split()),
-                            ),
-                            latency_ms=latency if index == 0 else 0.0,
-                            cost_usd=0.0,
-                        )
+                latency = measure_latency_ms(started)
+                for chunk_start in range(0, len(texts), 64):
+                    sub_texts = texts[chunk_start : chunk_start + 64]
+                    res = pc.inference.embed(
+                        model="multilingual-e5-large",
+                        inputs=sub_texts,
+                        parameters={"input_type": "passage", "truncate": "END"},
                     )
+                    data = getattr(res, "data", []) or []
+                    for sub_idx, item in enumerate(data):
+                        idx = chunk_start + sub_idx
+                        vec = list(getattr(item, "values", []) or [])
+                        if len(vec) < dim:
+                            vec = vec + [0.0] * (dim - len(vec))
+                        elif len(vec) > dim:
+                            vec = vec[:dim]
+                        results.append(
+                            EmbeddingResult(
+                                vector=vec,
+                                text_index=idx,
+                                provider=self.name,
+                                model="multilingual-e5-large",
+                                usage=TokenUsage(
+                                    prompt_tokens=len(texts[idx].split()),
+                                    total_tokens=len(texts[idx].split()),
+                                ),
+                                latency_ms=latency if idx == 0 else 0.0,
+                                cost_usd=0.0,
+                            )
+                        )
                 if len(results) == len(texts):
                     return results
             except Exception as pc_exc:
-                logger.warning("Pinecone inference embedding failed: %s; using local vector", pc_exc)
+                logger.warning(
+                    "Pinecone inference embedding failed: %s; using local vector", pc_exc
+                )
 
         # Fallback 2: Deterministic 1536-dimensional unit vector
         import hashlib
@@ -351,7 +356,7 @@ class OpenAIProvider(BaseProvider):
                 EmbeddingResult(
                     vector=vec,
                     text_index=index,
-                    provider="deterministic-fallback",
+                    provider=self.name,
                     model="pseudo-dense",
                     usage=TokenUsage(
                         prompt_tokens=len(words),
