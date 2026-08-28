@@ -150,6 +150,18 @@ class QueryPlanner:
                             cleaned = f"{tickers[0]} {cleaned}"
                         break
 
+        # Section context expansion to align with indexed financial document sections
+        low = cleaned.lower()
+        sec_additions: list[str] = []
+        if "risk" in low and "item 1a" not in low:
+            sec_additions.append("Item 1A Risk Factors")
+        if any(m in low for m in ["md&a", "management discussion", "results of operation"]) and "item 7" not in low:
+            sec_additions.append("Item 7 MD&A")
+        if any(m in low for m in ["balance sheet", "cash flow", "financial statement"]) and "item 8" not in low:
+            sec_additions.append("Item 8 Financial Statements")
+        if sec_additions:
+            cleaned = f"{cleaned} {' '.join(sec_additions)}"
+
         years = sorted({int(y) for y in _YEAR_RE.findall(cleaned)})
         date_range = None
         if years:
