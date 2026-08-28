@@ -17,8 +17,11 @@ Output fields mirror the spec's QueryResponse contract (answer, citations,
 agent_path, trace_url).
 """
 
+import logging
 import re
 from dataclasses import dataclass, field
+
+logger = logging.getLogger(__name__)
 
 from config.settings import Settings, get_settings
 from llm_providers.base import GenerationResult, ProviderUnavailableError
@@ -157,7 +160,8 @@ class RagChain:
                 try:
                     with trace.span("auto_ingest", ticker=target_ticker):
                         self.pipeline.ingest(
-                            {"ticker": target_ticker, "limit": 2}, source_type="sec_filing"
+                            {"ticker": target_ticker, "filing_type": "10-K", "limit": 2},
+                            source_type="sec_filing",
                         )
                     with trace.span("retrieve_after_ingest", top_k=k, filters=str(merged_filters)):
                         chunks = self.store.search(vector, top_k=k, filters=merged_filters)
