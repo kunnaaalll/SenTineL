@@ -31,7 +31,9 @@ TARGET_CHARS = 800  # spec section 7: ~800 char prose chunks
 OVERLAP_CHARS = 150  # spec section 7: 150 char overlap
 
 _TABLE_LINE = re.compile(r"^\s*\|.*\|\s*$")
-_ITEM_HEADING = re.compile(r"^\s*[Ii]tem\s+(\d{1,2}[A-B]?)\s*[.:—–-]\s*(.*)$")
+_ITEM_HEADING = re.compile(
+    r"^\s*item\s+(\d{1,2}[A-Za-z]?)\s*[.:—–-]\s*(.*)$", re.IGNORECASE
+)
 # "(1) ..." / "1. Sentence..." — deliberately conservative to avoid eating
 # numbered body text; continuation paragraphs starting lowercase are absorbed.
 _FOOTNOTE_START = re.compile(r"^(?:\(\d{1,2}\)\s+|\d{1,2}\.\s+[A-Z])")
