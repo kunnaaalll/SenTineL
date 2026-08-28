@@ -160,7 +160,7 @@ class RagChain:
                 try:
                     with trace.span("auto_ingest", ticker=target_ticker):
                         self.pipeline.ingest(
-                            {"ticker": target_ticker, "filing_type": "10-K", "limit": 2},
+                            {"ticker": target_ticker, "filing_type": "10-K", "limit": 1},
                             source_type="sec_filing",
                         )
                     with trace.span("retrieve_after_ingest", top_k=k, filters=str(merged_filters)):

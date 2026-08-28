@@ -21,7 +21,11 @@
 const RAW_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
 /** Base URL every request is joined onto; never has a trailing slash. */
-export const API_BASE_URL: string = RAW_BASE.trim().replace(/\/+$/, "");
+export const API_BASE_URL: string =
+  RAW_BASE.trim().replace(/\/+$/, "") ||
+  (typeof window !== "undefined" && window.location.hostname.includes("vercel.app")
+    ? "https://sentinel-backend-4zig.onrender.com"
+    : "");
 
 /** Agent-team queries can legitimately take a while; keep generous bounds. */
 export const QUERY_TIMEOUT_MS = 90_000;

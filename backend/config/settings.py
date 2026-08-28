@@ -93,7 +93,7 @@ class Settings(BaseSettings):
     availability_ttl_seconds: float = 30.0  # engine caches is_available() results
 
     # Ingestion pipeline (Phase 2)
-    ingest_batch_size: int = 64
+    ingest_batch_size: int = 128
     delete_before_reingest: bool = True
     # Pinecone rejects per-vector metadata over ~40KB; stay under it with headroom
     pinecone_metadata_cap_bytes: int = 38_000
