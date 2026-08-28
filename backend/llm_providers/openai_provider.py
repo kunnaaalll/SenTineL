@@ -69,21 +69,22 @@ def classify_sdk_exception(exc: BaseException) -> ProviderError:
     """
     name = type(exc).__name__
     status = _response_status(exc)
+    msg = str(exc)
 
     if status == 401 or "Authentication" in name or "PermissionDenied" in name:
-        return AuthenticationError(f"{name}: credentials rejected")
+        return AuthenticationError(f"{name}: credentials rejected — {msg}")
     if status == 429 or "RateLimit" in name:
-        return RateLimitError(f"{name}: rate limited", retry_after=_retry_after_seconds(exc))
+        return RateLimitError(f"{name}: rate limited — {msg}", retry_after=_retry_after_seconds(exc))
     if status is not None and status in _NON_RETRYABLE_STATUSES:
-        return InvalidRequestError(f"{name}: request rejected (HTTP {status})")
+        return InvalidRequestError(f"{name}: request rejected (HTTP {status}) — {msg}")
     if "Timeout" in name or "Connection" in name or "APITimeout" in name:
-        return TransientProviderError(f"{name}: transient network failure")
+        return TransientProviderError(f"{name}: transient network failure — {msg}")
     if status is not None and status >= 500:
-        return TransientProviderError(f"{name}: provider server error (HTTP {status})")
+        return TransientProviderError(f"{name}: provider server error (HTTP {status}) — {msg}")
     if "NotFound" in name:
-        return InvalidRequestError(f"{name}: unknown model or resource")
+        return InvalidRequestError(f"{name}: unknown model or resource — {msg}")
     # Unknown SDK error shape: treat as transient (retryable, then fallback).
-    return TransientProviderError(f"{name}: unrecognized provider failure")
+    return TransientProviderError(f"{name}: unrecognized provider failure — {msg}")
 
 
 def _usage_from(payload: Any) -> TokenUsage | None:
@@ -112,10 +113,13 @@ class OpenAIProvider(BaseProvider):
         self.settings = settings or get_settings()
         # Resolve SecretStr once; everything downstream sees plain str | None
         # exactly as before (availability booleans, SDK hand-off).
-        self.api_key = (
+        resolved_key = (
             api_key if api_key is not None else resolve_secret(self.settings.openai_api_key)
         )
-        self.base_url = base_url if base_url is not None else self.settings.openai_base_url
+        self.api_key = resolved_key.strip().strip("'\"") if resolved_key else None
+        resolved_base = base_url if base_url is not None else self.settings.openai_base_url
+        self.base_url = resolved_base.strip().strip("'\"").rstrip("/") if resolved_base else None
+
         default_gen_model = self.settings.openai_generation_model
         if self.base_url and "groq.com" in self.base_url.lower() and default_gen_model in ("gpt-4o-mini", "gpt-4o", "gpt-4"):
             default_gen_model = "llama-3.3-70b-versatile"
@@ -178,7 +182,6 @@ class OpenAIProvider(BaseProvider):
         messages.append({"role": "user", "content": prompt})
 
         kwargs: dict[str, Any] = {
-            "model": self.generation_model,
             "messages": messages,
             "temperature": temperature,
         }
@@ -187,29 +190,55 @@ class OpenAIProvider(BaseProvider):
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
 
-        started = time.perf_counter()
-        try:
-            response = self.client.chat.completions.create(**kwargs)
-        except Exception as exc:  # noqa: BLE001 — re-raised as typed ProviderError
-            classified = classify_sdk_exception(exc)
-            # Enrich with model/base_url for debugging, but preserve original exception type and attrs
-            classified.args = (
-                f"{classified} (model={self.generation_model}, base_url={self.base_url})",
-            )
-            raise classified from exc
+        # Candidate models to try in case of 404 / model name variations
+        models_to_try = [self.generation_model]
+        if self.base_url and "groq.com" in self.base_url.lower():
+            for fallback_m in [
+                "llama-3.3-70b-versatile",
+                "llama-3.1-8b-instant",
+                "llama3-70b-8192",
+                "llama3-8b-8192",
+                "mixtral-8x7b-32768",
+            ]:
+                if fallback_m not in models_to_try:
+                    models_to_try.append(fallback_m)
 
-        choice = response.choices[0] if getattr(response, "choices", None) else None
-        text = getattr(choice.message, "content", None) if choice else None
-        usage = _usage_from(getattr(response, "usage", None))
-        return GenerationResult(
-            text=text or "",
-            provider=self.name,
-            model=self.generation_model,
-            usage=usage,
-            latency_ms=measure_latency_ms(started),
-            cost_usd=estimate_cost_usd(self.generation_model, usage),
-            finish_reason=getattr(choice, "finish_reason", None),
+        started = time.perf_counter()
+        last_exc: BaseException | None = None
+
+        for model_candidate in models_to_try:
+            kwargs["model"] = model_candidate
+            try:
+                response = self.client.chat.completions.create(**kwargs)
+                choice = response.choices[0] if getattr(response, "choices", None) else None
+                text = getattr(choice.message, "content", None) if choice else None
+                usage = _usage_from(getattr(response, "usage", None))
+                return GenerationResult(
+                    text=text or "",
+                    provider=self.name,
+                    model=model_candidate,
+                    usage=usage,
+                    latency_ms=measure_latency_ms(started),
+                    cost_usd=estimate_cost_usd(model_candidate, usage),
+                    finish_reason=getattr(choice, "finish_reason", None),
+                )
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                exc_status = _response_status(exc)
+                # Only retry alternate models on 404 / NotFoundError
+                if exc_status != 404 and "notfound" not in type(exc).__name__.lower():
+                    break
+                logger.warning(
+                    "Model %s failed on %s with 404; trying next candidate",
+                    model_candidate,
+                    self.base_url,
+                )
+
+        classified = classify_sdk_exception(last_exc or RuntimeError("Unknown generation failure"))
+        classified.args = (
+            f"{classified} (model={self.generation_model}, base_url={self.base_url})",
         )
+        raise classified from last_exc
 
     def embed(self, texts: list[str]) -> list[EmbeddingResult]:
         if not texts:
