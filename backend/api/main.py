@@ -187,14 +187,18 @@ def create_app(
         application.add_middleware(
             TrustedHostMiddleware, allowed_hosts=resolved_settings.parsed_allowed_hosts
         )
-    application.add_middleware(
-        CORSMiddleware,
-        allow_origins=resolved_settings.parsed_cors_origins,
-        allow_credentials=True,
-        allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["*"],
-        expose_headers=["X-Request-ID", "Retry-After"],
-    )
+    cors_origins = resolved_settings.parsed_cors_origins
+    cors_kwargs: dict = {
+        "allow_credentials": True,
+        "allow_methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["*"],
+        "expose_headers": ["X-Request-ID", "Retry-After"],
+    }
+    if "*" in cors_origins or not resolved_settings.cors_allowed_origins:
+        cors_kwargs["allow_origin_regex"] = r"https?://.*"
+    else:
+        cors_kwargs["allow_origins"] = cors_origins
+    application.add_middleware(CORSMiddleware, **cors_kwargs)
     application.add_middleware(SecurityHeadersMiddleware, settings=resolved_settings)
     application.add_middleware(RequestIdMiddleware)
     application.add_middleware(MetricsMiddleware)

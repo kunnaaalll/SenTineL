@@ -134,7 +134,7 @@ class Settings(BaseSettings):
     rate_limit_requests_per_minute: int = 120
     rate_limit_burst_limit: int = 30
     max_request_body_bytes: int = 1_048_576  # 1 MB max request size
-    cors_allowed_origins: str = "http://127.0.0.1:3000,http://localhost:3000"
+    cors_allowed_origins: str = "*"
     allowed_hosts: str = "*"
     security_headers_enabled: bool = True
 
