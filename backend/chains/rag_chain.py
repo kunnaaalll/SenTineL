@@ -37,9 +37,9 @@ DEFAULT_SYSTEM_PROMPT = """You are Sentinel, an expert financial research assist
 using the numbered excerpts provided in the user message.
 
 Rules:
-1. Synthesize and summarize all relevant findings, facts, and risks present in the retrieved excerpts. Cite supporting excerpts inline with their numbers in brackets — e.g. [1] or [2][3] — for every factual claim.
+1. Synthesize and summarize the key findings, metrics, and risks present in the provided excerpts. Cite supporting excerpts inline with their numbers in brackets — e.g. [1] or [2][3] — for every factual claim.
 2. Never invent figures, dates, entities, or events that are not present in the excerpts.
-3. If the excerpts completely lack relevant information to answer the question, begin your reply with INSUFFICIENT_EVIDENCE followed by one short sentence about what is missing. Otherwise, provide a structured, detailed synthesis of all available evidence.
+3. If the excerpts contain relevant partial or thematic information, summarize what is documented with inline citations and explain what the excerpts state. Only begin with INSUFFICIENT_EVIDENCE if the excerpts are 100% empty or completely unrelated.
 4. Quote precise figures with their stated periods rather than rounding."""
 
 
@@ -76,13 +76,15 @@ def build_context(chunks: list[RetrievedChunk], *, excerpt_chars: int, budget_ch
 
 
 def parse_citations(text: str, max_index: int) -> list[int]:
-    """Validated, deduplicated citation indices, in order of first appearance."""
-    seen: list[int] = []
+    """Extract unique [N] integer citations in appearance order, 1 <= N <= max_index."""
+    seen: set[int] = set()
+    ordered: list[int] = []
     for match in _CITATION_RE.finditer(text):
         index = int(match.group(1))
         if 1 <= index <= max_index and index not in seen:
-            seen.append(index)
-    return seen
+            seen.add(index)
+            ordered.append(index)
+    return ordered
 
 
 class RagChain:
@@ -143,13 +145,15 @@ class RagChain:
         with trace.span("retrieve", top_k=fetch_k, filters=str(merged_filters)):
             raw_chunks = self.store.search(vector, top_k=fetch_k, filters=merged_filters)
 
-        def _is_pure_toc(chunk: RetrievedChunk) -> bool:
-            return (
-                bool(re.search(r"\|\s*Item\s+\d+.*\|\s*\d+\s*\|", chunk.text))
-                and len(chunk.text) < 500
-            )
+        def _is_unhelpful(chunk: RetrievedChunk) -> bool:
+            t = chunk.text.strip()
+            if len(t) < 120:
+                return True
+            if bool(re.search(r"\|\s*Item\s+\d+.*\|\s*\d+\s*\|", t)) and len(t) < 600:
+                return True
+            return False
 
-        substantive = [c for c in raw_chunks if not _is_pure_toc(c)]
+        substantive = [c for c in raw_chunks if not _is_unhelpful(c)]
         chunks = substantive[:k] if substantive else raw_chunks[:k]
         path.append("retrieve")
 
