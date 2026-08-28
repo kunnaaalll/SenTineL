@@ -103,6 +103,7 @@ class OpenAIProvider(BaseProvider):
         self,
         *,
         api_key: str | None = None,
+        base_url: str | None = None,
         generation_model: str | None = None,
         embedding_model: str | None = None,
         timeout_seconds: float | None = None,
@@ -114,6 +115,7 @@ class OpenAIProvider(BaseProvider):
         self.api_key = (
             api_key if api_key is not None else resolve_secret(self.settings.openai_api_key)
         )
+        self.base_url = base_url if base_url is not None else self.settings.openai_base_url
         self.generation_model = generation_model or self.settings.openai_generation_model
         self.embedding_model = embedding_model or self.settings.openai_embedding_model
         self.timeout_seconds = (
@@ -137,9 +139,14 @@ class OpenAIProvider(BaseProvider):
                 )
             if not self.api_key:
                 raise ProviderUnavailableError("OPENAI_API_KEY is not set")
-            self._client = _openai.OpenAI(
-                api_key=self.api_key, timeout=self.timeout_seconds, max_retries=0
-            )
+            client_kwargs: dict[str, Any] = {
+                "api_key": self.api_key,
+                "timeout": self.timeout_seconds,
+                "max_retries": 0,
+            }
+            if self.base_url:
+                client_kwargs["base_url"] = self.base_url
+            self._client = _openai.OpenAI(**client_kwargs)
         return self._client
 
     # -- BaseProvider surface ---------------------------------------------------

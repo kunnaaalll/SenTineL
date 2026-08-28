@@ -78,6 +78,7 @@ class Settings(BaseSettings):
 
     # LLM providers (Phase 2)
     openai_api_key: SecretStr | None = None
+    openai_base_url: str | None = None
     openai_generation_model: str = "gpt-4o-mini"
     openai_embedding_model: str = "text-embedding-3-small"
     ollama_base_url: str = "http://127.0.0.1:11434"
