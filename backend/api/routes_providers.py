@@ -13,11 +13,18 @@ def providers(request: Request) -> ProvidersResponse:
     engine = request.app.state.engine
     settings = request.app.state.settings
     available = engine.available_providers(refresh=True)
+    # Surface the actual generation model in use (helps diagnose Groq/xAI issues)
+    gen_model = None
+    for p in engine.providers:
+        if p.name in available and hasattr(p, "generation_model"):
+            gen_model = p.generation_model
+            break
     return ProvidersResponse(
         available=available,
         generation_default=available[0] if available else None,
         embedding_available=engine.has_embedding(),
         embedding_model=settings.openai_embedding_model if "openai" in available else None,
+        generation_model=gen_model,
     )
 
 

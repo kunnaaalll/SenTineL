@@ -132,6 +132,7 @@ class ProvidersResponse(BaseModel):
 
     available: list[str]
     generation_default: str | None = None
+    generation_model: str | None = None
     embedding_available: bool = False
     embedding_model: str | None = None
 
