@@ -291,7 +291,18 @@ class FetchAgent:
 
     def _search(self, vector: list[float], filters: dict) -> list[RetrievedChunk]:
         try:
-            return self.store.search(vector, top_k=self.top_k_per_search, filters=filters)
+            raw = self.store.search(
+                vector, top_k=max(self.top_k_per_search * 2, 16), filters=filters
+            )
+            substantive = [
+                c
+                for c in raw
+                if not (
+                    bool(re.search(r"\|\s*Item\s+\d+.*\|\s*\d+\s*\|", c.text))
+                    and len(c.text) < 500
+                )
+            ]
+            return (substantive if substantive else raw)[: self.top_k_per_search]
         except Exception as exc:  # noqa: BLE001 — a broken store must not kill the node
             logger.warning("Store search failed for %s (%s)", filters, exc)
             return []

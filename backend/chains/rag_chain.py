@@ -141,8 +141,18 @@ class RagChain:
         path.append("embed")
 
         # 3. Retrieve with metadata filters.
-        with trace.span("retrieve", top_k=k, filters=str(merged_filters)):
-            chunks = self.store.search(vector, top_k=k, filters=merged_filters)
+        fetch_k = max(k * 2, 24)
+        with trace.span("retrieve", top_k=fetch_k, filters=str(merged_filters)):
+            raw_chunks = self.store.search(vector, top_k=fetch_k, filters=merged_filters)
+
+        def _is_pure_toc(chunk: RetrievedChunk) -> bool:
+            return (
+                bool(re.search(r"\|\s*Item\s+\d+.*\|\s*\d+\s*\|", chunk.text))
+                and len(chunk.text) < 500
+            )
+
+        substantive = [c for c in raw_chunks if not _is_pure_toc(c)]
+        chunks = substantive[:k] if substantive else raw_chunks[:k]
         path.append("retrieve")
 
         # 3b. Automated on-demand SEC filing ingestion if no chunks are found
@@ -163,8 +173,10 @@ class RagChain:
                             {"ticker": target_ticker, "filing_type": "10-K", "limit": 1},
                             source_type="sec_filing",
                         )
-                    with trace.span("retrieve_after_ingest", top_k=k, filters=str(merged_filters)):
-                        chunks = self.store.search(vector, top_k=k, filters=merged_filters)
+                    with trace.span("retrieve_after_ingest", top_k=fetch_k, filters=str(merged_filters)):
+                        raw_chunks = self.store.search(vector, top_k=fetch_k, filters=merged_filters)
+                        substantive = [c for c in raw_chunks if not _is_pure_toc(c)]
+                        chunks = substantive[:k] if substantive else raw_chunks[:k]
                     if chunks:
                         path.append("auto_ingest")
                 except Exception as exc:  # noqa: BLE001
