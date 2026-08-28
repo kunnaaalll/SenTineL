@@ -93,6 +93,7 @@ class RagChain:
         settings: Settings | None = None,
         tracer: Tracer | None = None,
         rewriter=None,
+        pipeline=None,
         system_prompt: str | None = None,
     ):
         self.engine = engine
@@ -100,6 +101,7 @@ class RagChain:
         self.settings = settings or get_settings()
         self.tracer = tracer if tracer is not None else NULL_TRACER
         self.rewriter = rewriter
+        self.pipeline = pipeline
         self.system_prompt = system_prompt or DEFAULT_SYSTEM_PROMPT
 
     def run(
@@ -139,6 +141,30 @@ class RagChain:
         with trace.span("retrieve", top_k=k, filters=str(merged_filters)):
             chunks = self.store.search(vector, top_k=k, filters=merged_filters)
         path.append("retrieve")
+
+        # 3b. Automated on-demand SEC filing ingestion if no chunks are found
+        if not chunks and self.pipeline is not None:
+            target_ticker = merged_filters.get("ticker")
+            if not target_ticker and self.rewriter is not None:
+                detected = getattr(self.rewriter, "_detect_tickers", lambda _: [])(rewritten)
+                if detected:
+                    target_ticker = detected[0]
+            if target_ticker:
+                logger.info(
+                    "No indexed chunks found for %s; auto-ingesting SEC filings on-demand",
+                    target_ticker,
+                )
+                try:
+                    with trace.span("auto_ingest", ticker=target_ticker):
+                        self.pipeline.ingest(
+                            {"ticker": target_ticker, "limit": 2}, source_type="sec_filing"
+                        )
+                    with trace.span("retrieve_after_ingest", top_k=k, filters=str(merged_filters)):
+                        chunks = self.store.search(vector, top_k=k, filters=merged_filters)
+                    if chunks:
+                        path.append("auto_ingest")
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Auto-ingestion for %s failed: %s", target_ticker, exc)
 
         if not chunks:
             output = RagAnswer(

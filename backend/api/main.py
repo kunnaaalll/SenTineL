@@ -107,6 +107,7 @@ def create_app(
         settings=resolved_settings,
         tracer=resolved_tracer,
         rewriter=resolved_rewriter,
+        pipeline=resolved_pipeline,
     )
     # Agent team: each node independently injectable; defaults are fully
     # functional offline against whatever store/adapters were resolved above.
