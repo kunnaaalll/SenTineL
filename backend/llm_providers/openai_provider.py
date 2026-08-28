@@ -128,6 +128,12 @@ class OpenAIProvider(BaseProvider):
             timeout_seconds if timeout_seconds is not None else self.settings.llm_timeout_seconds
         )
         self._client: Any | None = None
+        logger.info(
+            "OpenAIProvider init: base_url=%s, generation_model=%s (settings=%s)",
+            self.base_url,
+            self.generation_model,
+            self.settings.openai_generation_model,
+        )
 
     # -- availability / client ------------------------------------------------
 
@@ -185,7 +191,12 @@ class OpenAIProvider(BaseProvider):
         try:
             response = self.client.chat.completions.create(**kwargs)
         except Exception as exc:  # noqa: BLE001 — re-raised as typed ProviderError
-            raise classify_sdk_exception(exc) from exc
+            classified = classify_sdk_exception(exc)
+            # Enrich with model/base_url for debugging, but preserve original exception type and attrs
+            classified.args = (
+                f"{classified} (model={self.generation_model}, base_url={self.base_url})",
+            )
+            raise classified from exc
 
         choice = response.choices[0] if getattr(response, "choices", None) else None
         text = getattr(choice.message, "content", None) if choice else None
