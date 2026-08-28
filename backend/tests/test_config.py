@@ -121,6 +121,29 @@ class TestProductionGating:
     def test_staging_is_not_gated_like_prod(self, clean_settings):
         assert clean_settings(sentinel_env="staging").production_blockers() == []
 
+    def test_prod_auth_enabled_requires_auth_api_key(self, clean_settings):
+        # Auth enabled without key blocks prod boot
+        with pytest.raises(ValueError, match="AUTH_API_KEY"):
+            clean_settings(
+                sentinel_env="prod",
+                sec_contact_email="ops@sentinel.example.dev",
+                openai_api_key="sk-test",
+                pinecone_api_key="pc-test",
+                auth_enabled=True,
+                auth_api_key=None,
+            )
+
+        # Auth enabled with key passes
+        s = clean_settings(
+            sentinel_env="prod",
+            sec_contact_email="ops@sentinel.example.dev",
+            openai_api_key="sk-test",
+            pinecone_api_key="pc-test",
+            auth_enabled=True,
+            auth_api_key="auth-secret-123",
+        )
+        assert s.production_blockers() == []
+
 
 # --------------------------------------------------------------------------
 # SEC contact email placeholder detection

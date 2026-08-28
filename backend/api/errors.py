@@ -63,7 +63,20 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(StarletteHTTPException)
     async def _http_handler(_: Request, exc: StarletteHTTPException) -> JSONResponse:
-        codes = {404: "not_found", 405: "method_not_allowed", 413: "payload_too_large"}
+        codes = {
+            400: "bad_request",
+            401: "unauthorized",
+            403: "forbidden",
+            404: "not_found",
+            405: "method_not_allowed",
+            413: "payload_too_large",
+            422: "validation_error",
+            429: "rate_limited",
+            500: "internal_error",
+            502: "bad_gateway",
+            503: "service_unavailable",
+            504: "gateway_timeout",
+        }
         return error_response(
             exc.status_code, codes.get(exc.status_code, "http_error"), str(exc.detail)
         )

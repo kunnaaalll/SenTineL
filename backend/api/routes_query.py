@@ -7,12 +7,15 @@ return the same QueryResponse contract; agent_path always starts with
 "classify" and reflects what actually ran.
 """
 
+import time
+
 from fastapi import APIRouter, Request
 
 from api.errors import ApiError
 from api.schemas import QueryRequest
 from llm_providers.base import ProviderUnavailableError
 from models.schemas import Citation, QueryResponse
+from observability.metrics import METRICS
 
 router = APIRouter()
 
@@ -45,6 +48,8 @@ def _run_query(request: Request, body: QueryRequest, *, force_agents: bool) -> Q
             "Vector store is not configured. Set PINECONE_API_KEY to enable queries.",
         )
 
+    start_t = time.perf_counter()
+    query_type = "multi_hop" if force_agents else "classified"
     try:
         result = service.answer(
             body.question,
@@ -52,10 +57,24 @@ def _run_query(request: Request, body: QueryRequest, *, force_agents: bool) -> Q
             top_k=body.top_k,
             filters=body.filters.to_store_filters() if body.filters else None,
         )
+        if "compare" in result.agent_path or "extract" in result.agent_path:
+            query_type = "multi_hop"
+        elif "rewrite" in result.agent_path or "retrieve" in result.agent_path:
+            query_type = "simple"
     except ProviderUnavailableError as exc:
+        duration_ms = (time.perf_counter() - start_t) * 1000.0
+        METRICS.record_query(query_type, duration_ms, 0, ok=False)
         # Only the simple path can surface this; the agent path degrades to a
         # grounded digest instead of raising.
         raise ApiError(503, "no_llm_provider", str(exc)) from exc
+    except Exception:
+        duration_ms = (time.perf_counter() - start_t) * 1000.0
+        METRICS.record_query(query_type, duration_ms, 0, ok=False)
+        raise
+
+    duration_ms = (time.perf_counter() - start_t) * 1000.0
+    citations_count = len(result.citations)
+    METRICS.record_query(query_type, duration_ms, citations_count, ok=True)
 
     return QueryResponse(
         answer=result.answer,

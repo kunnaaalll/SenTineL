@@ -1,14 +1,15 @@
 # Sentinel CI.
 #
 # Jobs are independent and fail the PR independently:
-#   checks     — formatting, lint, types, full offline test suite (host venv)
-#   container  — production image builds; boots offline with ZERO credentials;
-#                /health=200 + /ready=503 asserted; non-root user asserted;
-#                hermetic test suite executed INSIDE a Linux container
-#   compose    — infra/docker-compose.yml interpolates + validates cleanly
-#   terraform  — infra/terraform formats, initializes (-backend=false),
-#                validates without any cloud credentials
-#   secret-scan— gitleaks over the whole history
+#   backend-checks — formatting, lint, types, full offline test suite (host venv)
+#   frontend-checks— locked install, typecheck, lint, format check, tests, build
+#   container      — production images build; boots offline with ZERO credentials;
+#                    /health=200 + /ready=503 asserted; non-root user asserted;
+#                    hermetic test suite executed INSIDE a Linux container
+#   compose        — infra/docker-compose.yml interpolates + validates cleanly
+#   terraform      — infra/terraform formats, initializes (-backend=false),
+#                    validates without any cloud credentials
+#   secret-scan    — gitleaks over the whole history
 #
 # Everything here is offline except package/image/action downloads made by CI
 # itself; no test or smoke step talks to OpenAI/Pinecone/SEC/news/Langfuse.
@@ -25,7 +26,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  checks:
+  backend-checks:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -54,16 +55,40 @@ jobs:
       - name: Tests (offline suite)
         run: pytest
 
+  frontend-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install locked dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Verification suite (types, lint, format check, unit tests)
+        working-directory: frontend
+        run: npm run check
+
+      - name: Production build
+        working-directory: frontend
+        run: npm run build
+
   container:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build production image
+      - name: Build backend production image
         run: docker build -f infra/Dockerfile.backend --target production -t sentinel-backend:ci .
 
-      - name: Image contract — non-root user, no dev packages, import safety
+      - name: Backend image contract — non-root user, no dev packages, import safety
         run: |
           uid=$(docker run --rm --entrypoint id sentinel-backend:ci -u)
           echo "runtime uid=$uid"
@@ -74,7 +99,7 @@ jobs:
           # Source-root layout resolves under the container's PYTHONPATH only.
           docker run --rm sentinel-backend:ci python -c "import api.main; print('import ok')"
 
-      - name: Offline boot — /health 200, /ready 503 degraded, zero credentials
+      - name: Backend offline boot — /health 200, /ready 503 degraded, zero credentials
         run: |
           docker run -d --name sentinel-smoke -p 127.0.0.1:8000:8000 \
             -e OPENAI_API_KEY= -e PINECONE_API_KEY= sentinel-backend:ci
@@ -90,10 +115,27 @@ jobs:
           [ "$code" = "503" ] || { echo "FAIL: expected 503 degraded offline"; docker logs sentinel-smoke; exit 1; }
           docker rm -f sentinel-smoke > /dev/null
 
-      - name: Test suite executed inside a Linux container
+      - name: Backend test suite executed inside a Linux container
         run: |
           docker build -f infra/Dockerfile.backend --target test -t sentinel-backend:test .
           docker run --rm sentinel-backend:test
+
+      - name: Build frontend production image
+        run: docker build -f infra/Dockerfile.frontend --target production -t sentinel-frontend:ci .
+
+      - name: Frontend image contract — non-root node user, liveness
+        run: |
+          uid=$(docker run --rm --entrypoint id sentinel-frontend:ci -u)
+          echo "frontend runtime uid=$uid"
+          [ "$uid" = "1000" ] || { echo "FAIL: expected uid 1000 for node user"; exit 1; }
+          docker run -d --name sentinel-frontend-smoke -p 127.0.0.1:3000:3000 sentinel-frontend:ci
+          ok=""
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3000/health >/dev/null 2>&1; then ok=yes; break; fi
+            sleep 1
+          done
+          [ -n "$ok" ] || { echo "FAIL: frontend never became healthy"; docker logs sentinel-frontend-smoke; exit 1; }
+          docker rm -f sentinel-frontend-smoke > /dev/null
 
   compose:
     runs-on: ubuntu-latest
@@ -104,8 +146,11 @@ jobs:
       - name: Validate stack config with no environment at all
         run: docker compose -f infra/docker-compose.yml config -q
 
-      - name: Interpolation sanity — resolved model contains no empty image/service
-        run: docker compose -f infra/docker-compose.yml config | grep -E "image:|container_name:" | head -4
+      - name: Interpolation sanity — resolved model contains both services
+        run: |
+          docker compose -f infra/docker-compose.yml config | grep -E "image:|container_name:" | head -8
+          docker compose -f infra/docker-compose.yml config | grep -q "sentinel-backend"
+          docker compose -f infra/docker-compose.yml config | grep -q "sentinel-frontend"
 
   terraform:
     runs-on: ubuntu-latest

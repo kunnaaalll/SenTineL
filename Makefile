@@ -1,4 +1,4 @@
-.PHONY: setup lock test test-one fmt lint typecheck check hooks run serve clean
+.PHONY: setup lock test test-one fmt lint typecheck check hooks run serve clean frontend-setup frontend-dev frontend-test frontend-check frontend-build check-all
 
 # Spec targets Python 3.11 (infra/Dockerfile.backend uses python:3.11-slim)
 PY ?= python3.11
@@ -10,12 +10,18 @@ setup:
 	$(PIP) install --upgrade pip
 	$(PIP) install -r backend/requirements-dev.txt
 
+frontend-setup:
+	cd frontend && npm ci
+
 # Local-only API server (no auth in v1 — never expose publicly).
 # backend/ is the import root, so uvicorn runs with it on PYTHONPATH.
 run:
 	cd backend && ../$(VENV)/bin/uvicorn api.main:app --host 127.0.0.1 --port 8000
 
 serve: run
+
+frontend-dev:
+	cd frontend && npm run dev
 
 # Regenerate backend/requirements-lock.txt (runtime+dev) from the current venv,
 # then derive backend/requirements-prod-lock.txt — the runtime-only subset the
@@ -38,18 +44,37 @@ test:
 test-one:
 	$(VENV)/bin/python -m pytest $(T)
 
+frontend-test:
+	cd frontend && npm test
+
+frontend-check:
+	cd frontend && npm run check
+
+frontend-build:
+	cd frontend && npm run build
+
 fmt:
 	$(VENV)/bin/ruff format .
 	$(VENV)/bin/ruff check --fix .
+	cd frontend && npm run format
 
 lint:
 	$(VENV)/bin/ruff format --check .
 	$(VENV)/bin/ruff check .
+	cd frontend && npm run lint
 
 typecheck:
 	$(VENV)/bin/mypy .
+	cd frontend && npm run typecheck
 
-check: lint typecheck test
+check: lint typecheck test frontend-check
+
+check-all: check frontend-build
+
+rc-validate: check-all
+	@echo "==> Release candidate validation complete. All suites, types, and builds pass cleanly."
+
+release-check: rc-validate
 
 hooks:
 	$(VENV)/bin/pre-commit install
@@ -57,3 +82,5 @@ hooks:
 clean:
 	rm -rf $(VENV) .pytest_cache backend/.pytest_cache .mypy_cache .ruff_cache
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +
+	rm -rf frontend/.next frontend/node_modules/.cache
+

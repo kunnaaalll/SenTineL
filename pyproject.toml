@@ -6,7 +6,7 @@
 
 [project]
 name = "sentinel"
-version = "0.1.0"
+version = "0.1.0-rc1"
 description = "Agentic financial research copilot — RAG over SEC filings, transcripts, and news"
 requires-python = ">=3.11"
 

@@ -1,14 +1,10 @@
 # Sentinel — Deployment & Operations
 
-Covers containerization, the local Compose stack, environment configuration,
-health/readiness semantics, the Terraform foundation, and secret management.
-Status after this milestone: **nothing has been deployed and no cloud
-resources exist.** Every artifact below runs locally or in CI only; no AWS
-account, VPC, cluster, bucket, or secret store has been created or touched.
+Covers containerization, the local Compose stack, environment configuration, health/readiness semantics, the Terraform staging infrastructure, secret management, CI gates, and approval-gated deployments.
 
 ---
 
-## 1. Local development (no containers)
+## 1. Local Development (No Containers)
 
 ```bash
 make setup            # .venv from backend/requirements-dev.txt
@@ -17,192 +13,134 @@ make run              # uvicorn on 127.0.0.1:8000
 make check            # ruff format/lint + mypy + offline test suite
 ```
 
-`backend/` is a **source root** (absolute imports like `from models.schemas
-import Chunk`). Tooling resolves it via `pythonpath` in `pyproject.toml`,
-`PYTHONPATH=backend`, and — inside images — `PYTHONPATH=/app/backend`. There
-are no runtime `sys.path` hacks anywhere.
+`backend/` is a **source root** (absolute imports like `from models.schemas import Chunk`). Tooling resolves it via `pythonpath` in `pyproject.toml`, `PYTHONPATH=backend`, and inside images via `PYTHONPATH=/app/backend`. There are no runtime `sys.path` hacks.
 
-## 2. Image build
+---
 
-`infra/Dockerfile.backend` (build context: repo root):
+## 2. Container Images
+
+### Backend (`infra/Dockerfile.backend`)
+- **Base**: `python:3.11-slim-trixie` (pinned tag).
+- **User**: Unprivileged `sentinel:sentinel` (UID 10001).
+- **Filesystem**: Runs safely under read-only root with writable `/tmp`.
+- **Runtime**: `uvicorn api.main:app --host 0.0.0.0 --port 8000` with 20s graceful shutdown bound.
+- **Healthcheck**: `GET /health` on loopback.
 
 ```bash
 docker build -f infra/Dockerfile.backend --target production -t sentinel-backend:local .
 ```
 
-| Property | Value |
-|---|---|
-| Base | `python:3.11-slim-trixie` (pinned tag) |
-| Dependencies | `backend/requirements-prod-lock.txt` — runtime-only subset of the dev lock, identical versions via `-c` constraint (`make lock` regenerates both) |
-| User | uid/gid 10001 `sentinel:sentinel`, nologin shell; code+venv root-owned |
-| Filesystem | works under read-only root; writable state confined to `/tmp` |
-| Imports | `ENV PYTHONPATH=/app/backend` — source-root layout baked in |
-| Server | exec-form `uvicorn api.main:app --host 0.0.0.0 --port 8000` (PID 1) |
-| Graceful shutdown | SIGTERM → stop accepting → drain → lifespan tracer-flush; bounded by `--timeout-graceful-shutdown 20` |
-| HEALTHCHECK | stdlib urllib GET `/health` (liveness only — see §5) |
-| Network at build | base-image pull + pinned pip install only |
-
-A second target, `test`, installs the full runtime+dev lockfile and runs the
-hermetic pytest suite inside Linux — CI executes it on every push:
+### Frontend (`infra/Dockerfile.frontend`)
+- **Base**: `node:20-alpine` (pinned tag).
+- **User**: Unprivileged `node:node` (UID 1000).
+- **Runtime**: Next.js standalone server on port 3000.
+- **Backend Routing**: Proxying configured via `BACKEND_ORIGIN` environment variable.
+- **Healthcheck**: `GET /health` on port 3000.
 
 ```bash
-docker build -f infra/Dockerfile.backend --target test -t sentinel-backend:test .
-docker run --rm sentinel-backend:test
+docker build -f infra/Dockerfile.frontend --target production -t sentinel-frontend:local .
 ```
 
-The default build target is `production`; the dev/test image exists only via
-explicit `--target test` and never changes production behavior.
+---
 
-## 3. Docker Compose stack
+## 3. Docker Compose Stack
 
-`infra/docker-compose.yml` — backend only. No APEX service (Sentinel is fully
-standalone per spec §6.4), and no frontend service yet: the Phase 5 Next.js
-UI will be added as a sibling service consuming this API over REST.
-
-### Offline start (zero credentials)
+`infra/docker-compose.yml` provides a standalone stack containing both `backend` and `frontend` on a private bridge network (`sentinel`).
 
 ```bash
-cd <repo-root>
 docker compose -f infra/docker-compose.yml up --build
 curl -s localhost:8000/health   # {"status":"ok",...}
+curl -s localhost:3000/health   # {"status":"ok","service":"sentinel-frontend"}
 ```
 
-Requires nothing: no `.env`, no keys. The API serves `/health` (200);
-`/ready` returns 503 degraded until providers are configured. Requires
-Docker Compose v2.24+ (`env_file.required`).
+- **Backend**: Loopback-bound (`127.0.0.1:8000`), read-only root filesystem, tmpfs `/tmp`, `cap_drop: ALL`.
+- **Frontend**: Loopback-bound (`127.0.0.1:3000`), non-root `node` user, internal communication to `http://backend:8000`.
 
-### Provider-enabled start
+---
 
-Credentials reach the container through exactly one channel: `env_file:
-../.env` (gitignored). Create it from the template and fill in what you have:
+## 4. Terraform Staging Infrastructure (`infra/terraform/`)
 
+The infrastructure is codified in Terraform targeting AWS (AWS provider `~> 6.0`, Terraform `>= 1.9`).
+
+### Architecture Summary
+
+```
+                       [ Internet ]
+                            |
+                            v (Port 80/443)
+              [ Application Load Balancer ]
+               (Multi-AZ Public Subnets)
+                            |
+         +------------------+------------------+
+         | Path: /* (Default)                  | Path: /query, /agents/*, /ingest, /sources,
+         v (Port 3000)                         |       /providers, /ready, /metrics, /docs...
+[ Frontend ECS Fargate ]                       v (Port 8000)
+ (Private Subnets)                    [ Backend ECS Fargate ]
+         |                             (Private Subnets)
+         +------------------+------------------+
+                            |
+                            v
+       [ VPC Endpoints & NAT Gateway ]
+        - AWS Secrets Manager (/sentinel/staging/runtime-secrets)
+        - CloudWatch Logs (/sentinel/staging/backend, /frontend)
+        - ECR (api, dkr) & S3 Gateway
+```
+
+### Resource Inventory (32 Codified Resources)
+1. **Networking (`networking.tf`)**: VPC (`10.0.0.0/16`), 2 public subnets, 2 private subnets, Internet Gateway, NAT Gateway (with EIP), route tables, and VPC Endpoints for S3, ECR, Secrets Manager, and CloudWatch.
+2. **Security Groups (`security_groups.tf`)**: Strict least-privilege ingress (ALB on 80/443; Frontend on 3000 from ALB only; Backend on 8000 from ALB & Frontend only; Endpoints on 443 from ECS tasks).
+3. **Secrets Management (`secrets.tf`)**: AWS Secrets Manager secret `/sentinel/${name_prefix}/runtime-secrets` with environment-aware deletion protection.
+4. **IAM Roles (`iam.tf`)**: ECS Task Execution Role with `secretsmanager:GetSecretValue` and CloudWatch logging permissions; ECS Task Role.
+5. **Load Balancing (`alb.tf`)**: Application Load Balancer with frontend (port 3000) and backend (port 8000) target groups, HTTP listener, and path-based routing for API and documentation endpoints.
+6. **ECS Fargate Compute (`ecs.tf`)**: Cluster with Container Insights, Backend task definition injecting secrets from Secrets Manager, Frontend task definition, and Fargate services.
+7. **Observability & Alarms (`cloudwatch.tf`)**: CloudWatch log groups, metric alarms for CPU, Memory, ALB 5XX errors, Target Latency, and Unhealthy hosts, with SNS notification topic.
+
+### Remote State Setup (S3 + DynamoDB)
+
+State locking and encryption are mandatory:
 ```bash
-cp .env.example .env   # set OPENAI_API_KEY / PINECONE_API_KEY / NEWS_API_KEY ...
-docker compose -f infra/docker-compose.yml up --build
-curl -s localhost:8000/ready   # 200 once embedding + vector store are configured
+aws s3api create-bucket --bucket sentinel-tfstate-staging --region us-east-1
+aws s3api put-bucket-encryption --bucket sentinel-tfstate-staging \
+  --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+aws s3api put-bucket-versioning --bucket sentinel-tfstate-staging \
+  --versioning-configuration Status=Enabled
+
+aws dynamodb create-table \
+  --table-name sentinel-tflock-staging \
+  --attribute-definitions AttributeName=LockID,AttributeType=S \
+  --key-schema AttributeName=LockID,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST \
+  --region us-east-1
 ```
 
-All other container configuration — credentials and non-secret tunables alike
-(`SENTINEL_ENV`, model names, provider order, `SEC_CONTACT_EMAIL`) — reaches the
-container through that same single channel: `../.env` via `env_file`. The
-compose file declares **no `environment:` block on purpose**: Compose gives
-`environment:` precedence over `env_file:`, and its `${VAR:-}` interpolation
-resolves against the shell / project directory (`infra/`), never the repo-root
-`.env` — so any entry there could silently replace a configured value with an
-empty string. Unset variables simply fall back to the safe defaults in
-`backend/config/settings.py`, which is what makes offline boot work.
+---
 
-> Ollama note: the container's `OLLAMA_BASE_URL` default points to
-> `127.0.0.1` *inside* the container. To use a host daemon set
-> `OLLAMA_BASE_URL=http://host.docker.internal:11434` in `.env`.
+## 5. Deployment Workflow & Release Controls
 
-### Stack hardening
+### Staging Deployment (`.github/workflows/deploy-staging.yml`)
+- Triggered on push to `main` or via manual `workflow_dispatch`.
+- Executes automated pre-flight checks (pytest, mypy, ruff, terraform validate) before plan generation.
+- Authenticates using short-lived OIDC IAM credentials (`token.actions.githubusercontent.com`).
+- Tags images immutably with commit SHA (`git-${{ github.sha }}`).
+- Generates and archives a Terraform plan artifact (`staging-tfplan`).
+- Requires explicit GitHub Environment approval for `staging` before executing apply.
+- Updates ECS Fargate tasks with rolling blue/green deployments.
 
-Read-only root filesystem · `cap_drop: ALL` · `no-new-privileges` · bounded
-tmpfs `/tmp` · named bridge network `sentinel` · log rotation (10MB × 3) ·
-restart policy `unless-stopped` · `stop_grace_period: 25s` (headroom above
-uvicorn's 20s drain bound — Compose's 10s default would SIGKILL mid-drain).
+### Operational Runbooks & Checklists
+- **Release Checklist**: [RELEASE_CHECKLIST.md](file:///Applications/My%20Mac/Development/Projects/SenTineL/docs/RELEASE_CHECKLIST.md)
+- **Go-Live Runbook**: [GO_LIVE_RUNBOOK.md](file:///Applications/My%20Mac/Development/Projects/SenTineL/docs/GO_LIVE_RUNBOOK.md)
 
-**Port exposure:** v1 ships no authentication (spec §17). The compose port
-mapping defaults to loopback:
-
-```
-"${SENTINEL_API_BIND:-127.0.0.1}:${SENTINEL_API_PORT:-8000}:8000"
-```
-
-These two variables (plus `SENTINEL_IMAGE_TAG`) are consumed by *Compose*
-itself, so they interpolate from the shell or from `infra/.env` (the project
-directory) — not from the repo-root `.env`. Never override
-`SENTINEL_API_BIND` to `0.0.0.0` on a reachable host without adding auth or a
-gateway that enforces access control first.
-
-## 4. Environment variables
-
-Full annotated list: `.env.example`. Summary:
-
-**Required before production boot** (`SENTINEL_ENV=prod` fails fast otherwise):
-
-| Variable | Purpose |
-|---|---|
-| `SEC_CONTACT_EMAIL` | Real operator contact for SEC User-Agent (placeholder/example.com domains refused for live EDGAR use in every environment) |
-| `OPENAI_API_KEY` | Primary generation + embeddings |
-| `PINECONE_API_KEY` | Vector store |
-
-**Optional everywhere** (degrade gracefully): `NEWS_API_KEY`,
-`NEWS_API_PROVIDER`, `LANGFUSE_PUBLIC_KEY/SECRET_KEY/HOST`,
-`OLLAMA_BASE_URL/…MODELS`, `APEX_ENDPOINT_URL` (adapter disabled),
-`LLM_PROVIDER_ORDER`, model names, retry/RAG tuning knobs,
-`PINECONE_INDEX_NAME`, `SENTINEL_ENV` (dev/staging/prod).
-
-Compose-only knobs: `SENTINEL_IMAGE_TAG`, `SENTINEL_API_BIND`,
-`SENTINEL_API_PORT`.
-
-Secret-handling rules enforced in code: every credential field is a pydantic
-`SecretStr` — logging/repr/dumping a Settings object shows `**********`;
-SDK hand-off sites resolve once via `resolve_secret()`; nothing logs
-configuration containing secrets.
-
-## 5. Health vs readiness
-
-| Endpoint | Success | Degraded behavior | Meaning |
-|---|---|---|---|
-| `GET /health` | 200 `{status, version, env}` | always 200 while process lives | liveness — restart me if this fails |
-| `GET /ready` | 200 `{status:"ready", checks}` | 503 `not_ready` + checks detail | can actually serve `/query` and `/ingest`: embedding provider available AND vector store configured |
-
-The container HEALTHCHECK intentionally uses `/health` only — an unconfigured
-but correctly-running service must not be restarted into a crashloop.
-Orchestrators should gate traffic routing on `/ready`.
-
-## 6. Terraform foundation (`infra/terraform/`)
-
-Deployment-neutral skeleton targeting AWS. Version-pinned (`>= 1.9, < 2`;
-AWS provider `~> 6.0`), validated variables, zero resources — extension
-points for networking, hosting, secrets, logging, monitoring, IAM, and
-environment separation are documented inline in `main.tf`. Details and the
-remote-state bootstrap procedure: `infra/terraform/README.md`.
-
-```bash
-cd infra/terraform
-terraform fmt -check -recursive   # formatting gate (CI)
-terraform init -backend=false     # providers only, no state
-terraform validate                # structural validation (CI)
-# plan/apply happen ONLY later, against a chosen dev account, with envs/*.tfvars
-```
-
-Environments (dev/staging/prod) will differ exclusively by tfvars and remote-
-state key prefixes (`sentinel/<environment>/terraform.tfstate`) — never shared
-state or workspaces.
-
-## 7. Secret management
-
-| Layer | Rule |
-|---|---|
-| Git | `.env*` gitignored (except `.env.example`); gitleaks scans full history in CI; local pattern scan available |
-| Images | `.dockerignore` hard-excludes `.env*` from the build context; Dockerfile contains no credential literals (contract-tested) |
-| Compose | credentials flow only via `env_file: ../.env`; never in `environment:` interpolation |
-| Runtime objects | `SecretStr` settings fields mask repr/logs; tracer redacts secret-like metadata keys |
-| Cloud (future) | Secrets Manager per environment read by the ECS execution role at task start; values never enter tfvars/task defs/git |
-
-## 8. Staging vs production expectations
-
-| Aspect | dev (default) | staging | prod |
-|---|---|---|---|
-| Boot requirements | none | none planned; tfvars-driven | SEC email + OpenAI + Pinecone mandatory (fail-fast) |
-| `SENTINEL_ENV` | `dev` | `staging` | `prod` (→ Pinecone namespace isolation) |
-| Data | throwaway namespace | scrubbed copies only | real filings/news |
-| Exposure | loopback only | private network behind gateway | private network + auth/gateway BEFORE any exposure |
-| State | local compose | remote TF state `staging/` prefix | remote TF state `prod/` prefix |
-
-Production readiness beyond this milestone: authentication/rate limiting
-(v1 non-goal), HTTPS termination at a gateway, alarm routing, and backup/
-retention policy — all tracked as pre-prod gates, none implemented here.
-
-## 9. CI gates
-
-`.github/workflows/ci.yml` runs five independent jobs: host quality gates;
-production image build + contract checks (non-root UID 10001, no pytest in
-image, import safety, offline boot with `/health`=200 and `/ready`=503); the
-test suite executed inside Linux via the `test` target; compose config
-validation; terraform fmt/init/validate; gitleaks secret scanning over full
-history. All checks are offline except CI's own package/image/action
-downloads.
+### Rollback Procedure
+If a deployment degrades or triggers CloudWatch alarms:
+1. Revert to the previous stable container image tag or task revision:
+   ```bash
+   aws ecs update-service \
+     --cluster sentinel-staging-ecs-cluster \
+     --service sentinel-staging-backend-svc \
+     --task-definition sentinel-staging-backend:<PREVIOUS_REVISION>
+   ```
+2. Invalidate CDN / load balancer caches if needed.
+3. If infrastructure changes are broken, revert Git commit and run:
+   ```bash
+   terraform apply -var-file=envs/staging.tfvars
+   ```

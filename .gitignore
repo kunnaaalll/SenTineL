@@ -23,6 +23,9 @@ htmlcov/
 # Node (Phase 5 frontend)
 node_modules/
 .next/
+*.tsbuildinfo
+frontend/.next/
+frontend/node_modules/
 
 # Terraform — state files contain resolved values and must never be committed.
 # .terraform/ is the plugin/cache dir; lock files (.terraform.lock.hcl) ARE committed.
@@ -31,6 +34,8 @@ node_modules/
 *.tfstate.*
 *.tfvars
 !*.tfvars.example
+*.tfplan
+*.tfplan.*
 crash.log
 crash.*.log
 override.tf

@@ -16,6 +16,7 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DOCKERFILE = REPO_ROOT / "infra" / "Dockerfile.backend"
+DOCKERFILE_FRONTEND = REPO_ROOT / "infra" / "Dockerfile.frontend"
 COMPOSE_FILE = REPO_ROOT / "infra" / "docker-compose.yml"
 DOCKERIGNORE = REPO_ROOT / ".dockerignore"
 
@@ -35,6 +36,12 @@ _CREDENTIAL_VARS = (
 def dockerfile_text() -> str:
     assert DOCKERFILE.exists(), f"{DOCKERFILE} missing"
     return DOCKERFILE.read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def frontend_dockerfile_text() -> str:
+    assert DOCKERFILE_FRONTEND.exists(), f"{DOCKERFILE_FRONTEND} missing"
+    return DOCKERFILE_FRONTEND.read_text(encoding="utf-8")
 
 
 def _stages(text: str) -> list[tuple[str, str]]:
@@ -60,7 +67,7 @@ def _stages(text: str) -> list[tuple[str, str]]:
 
 
 # --------------------------------------------------------------------------
-# Dockerfile contract
+# Dockerfile contract — Backend
 # --------------------------------------------------------------------------
 
 
@@ -136,6 +143,65 @@ class TestDockerfileContract:
         assert "sys.path" not in joined, "no runtime path hacks allowed"
 
 
+# --------------------------------------------------------------------------
+# Dockerfile contract — Frontend
+# --------------------------------------------------------------------------
+
+
+class TestFrontendDockerfileContract:
+    def test_base_images_are_pinned_node_alpine(self, frontend_dockerfile_text):
+        bases = [
+            line.split()[1]
+            for line in frontend_dockerfile_text.splitlines()
+            if line.startswith("FROM ")
+        ]
+        assert bases, "no FROM lines found"
+        for base in bases:
+            assert base.startswith("node:20-alpine"), f"unexpected base {base}"
+
+    def test_installs_from_locked_package_json_only(self, frontend_dockerfile_text):
+        assert "package-lock.json" in frontend_dockerfile_text
+        assert "npm ci" in frontend_dockerfile_text
+
+    def test_production_stage_runs_as_non_root_node(self, frontend_dockerfile_text):
+        stages = dict(_stages(frontend_dockerfile_text))
+        assert "production" in stages
+        production_body = stages["production"]
+        user_lines = [line for line in production_body.splitlines() if line.startswith("USER ")]
+        assert user_lines == ["USER node"], (
+            "production stage must end up running as the unprivileged node user"
+        )
+
+    def test_production_stage_has_healthcheck(self, frontend_dockerfile_text):
+        stages = dict(_stages(frontend_dockerfile_text))
+        production_body = stages["production"]
+        assert "HEALTHCHECK" in production_body
+        assert "/health" in production_body
+
+    def test_cmd_is_exec_form_node(self, frontend_dockerfile_text):
+        stages = dict(_stages(frontend_dockerfile_text))
+        production_body = stages["production"]
+        cmd_lines = [ln for ln in production_body.splitlines() if ln.startswith("CMD ")]
+        assert len(cmd_lines) == 1
+        assert cmd_lines[0].startswith('CMD ["node"'), "CMD must be exec-form"
+
+    def test_no_credentials_embedded_in_any_layer(self, frontend_dockerfile_text):
+        forbidden = (
+            "OPENAI_API_KEY=",
+            "PINECONE_API_KEY=",
+            "NEWS_API_KEY=",
+            "LANGFUSE_SECRET_KEY=",
+            "sk-",
+            "apikey",
+        )
+        for line in frontend_dockerfile_text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("#"):
+                continue
+            for token in forbidden:
+                assert token.lower() not in stripped.lower(), f"suspicious literal: {line}"
+
+
 class TestDockerignoreContract:
     def test_secrets_never_enter_build_context(self):
         text = DOCKERIGNORE.read_text(encoding="utf-8")
@@ -159,21 +225,23 @@ def compose_config() -> dict:
 
 
 class TestComposeContract:
-    def test_backend_is_the_only_service(self, compose_config):
+    def test_services_present(self, compose_config):
         services = set(compose_config["services"])
-        assert services == {"backend"}, f"unexpected service set: {services}"
+        assert services == {"backend", "frontend"}, f"unexpected service set: {services}"
 
-    def test_no_apex_and_no_placeholder_frontend(self, compose_config):
-        """The optional APEX adapter is never a stack service; the frontend
-        does not exist yet (Phase 5) so none may be invented here."""
+    def test_no_apex(self, compose_config):
+        """The optional APEX adapter is never a stack service."""
         services = set(compose_config["services"])
         assert not any("apex" in name for name in services)
-        assert not any("front" in name or "web" in name for name in services)
 
     def test_publishes_on_loopback_by_default(self, compose_config):
-        ports = compose_config["services"]["backend"]["ports"]
-        assert any("${SENTINEL_API_BIND:-127.0.0.1}" in p for p in ports), (
-            "v1 has no auth — the default publish target must be loopback"
+        backend_ports = compose_config["services"]["backend"]["ports"]
+        assert any("${SENTINEL_API_BIND:-127.0.0.1}" in p for p in backend_ports), (
+            "v1 has no auth — the default backend publish target must be loopback"
+        )
+        frontend_ports = compose_config["services"]["frontend"]["ports"]
+        assert any("${SENTINEL_FRONTEND_BIND:-127.0.0.1}" in p for p in frontend_ports), (
+            "v1 frontend default publish target must be loopback"
         )
 
     def test_hardening_options_present(self, compose_config):
@@ -183,6 +251,17 @@ class TestComposeContract:
         assert "no-new-privileges:true" in backend["security_opt"]
         assert any(t.startswith("/tmp:") or t == "/tmp" for t in backend["tmpfs"])
         assert backend["restart"] == "unless-stopped"
+
+        frontend = compose_config["services"]["frontend"]
+        assert "no-new-privileges:true" in frontend["security_opt"]
+        assert frontend["restart"] == "unless-stopped"
+
+    def test_frontend_wiring(self, compose_config):
+        frontend = compose_config["services"]["frontend"]
+        assert "backend" in frontend.get("depends_on", [])
+        assert "sentinel" in frontend.get("networks", [])
+        env = frontend.get("environment", [])
+        assert any("BACKEND_ORIGIN=" in str(item) for item in env)
 
     def test_stop_grace_period_exceeds_uvicorn_drain_bound(self, compose_config):
         """uvicorn drains up to 20s (--timeout-graceful-shutdown); Compose's
@@ -196,8 +275,9 @@ class TestComposeContract:
         assert set(networks) == {"sentinel"}
         assert networks["sentinel"]["driver"] == "bridge"
         assert "sentinel" in compose_config["services"]["backend"]["networks"]
+        assert "sentinel" in compose_config["services"]["frontend"]["networks"]
 
-    def test_no_environment_block_so_env_file_cannot_be_shadowed(self, compose_config):
+    def test_backend_no_environment_block_so_env_file_cannot_be_shadowed(self, compose_config):
         """`environment:` outranks `env_file:` per the Compose spec, and its
         ${VAR:-} interpolations resolve against the shell / project-dir .env —
         never the repo-root .env. Any entry there could silently replace a
@@ -216,14 +296,19 @@ class TestComposeContract:
         assert ("../.env", False) in paths
 
     def test_interpolation_limited_to_compose_owned_knobs(self, compose_config):
-        """The only ${...} substitutions allowed are the three knobs Compose
-        itself consumes (image tag, bind host, port) — nothing that reaches
-        the container's runtime config."""
+        """The only ${...} substitutions allowed are the Compose-owned knobs
+        (image tag, bind hosts, ports) — nothing that reaches container secrets."""
         text = COMPOSE_FILE.read_text(encoding="utf-8")
         import re
 
         referenced = set(re.findall(r"\$\{([A-Z_][A-Z0-9_]*)(?::-)?", text))
-        allowed = {"SENTINEL_IMAGE_TAG", "SENTINEL_API_BIND", "SENTINEL_API_PORT"}
+        allowed = {
+            "SENTINEL_IMAGE_TAG",
+            "SENTINEL_API_BIND",
+            "SENTINEL_API_PORT",
+            "SENTINEL_FRONTEND_BIND",
+            "SENTINEL_FRONTEND_PORT",
+        }
         assert referenced <= allowed, f"unexpected interpolated vars: {referenced - allowed}"
 
 

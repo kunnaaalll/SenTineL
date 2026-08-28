@@ -1,23 +1,24 @@
-"""Sentinel FastAPI application (spec section 12).
+"""Sentinel FastAPI application (spec section 12, docs/API.md, docs/OPERATIONS.md).
 
-create_app() wires the Phase 2+3 components (LLM engine, vector store,
-adapters incl. news, ingestion pipeline, RAG chain, agent team, query
-service, tracer) into app.state; every route reads them from there, which
-makes the whole API injectable for offline tests.
+create_app() wires the components (LLM engine, vector store, adapters,
+ingestion pipeline, RAG chain, agent team, query service, tracer, metrics)
+into app.state; every route reads them from there, making the entire API
+injectable for offline testing.
 
-PRIVATE / LOCAL-ONLY: there is no authentication by design in v1 (spec
-section 17). Never expose this service publicly — bind to 127.0.0.1 or a
-private network until auth exists.
-
-Run locally from the repo root:
-    PYTHONPATH=backend .venv/bin/uvicorn api.main:app --host 127.0.0.1 --port 8000
-or `make run`.
+Security & Operations:
+- Single-user staging authentication (API key / Bearer token validation)
+- In-memory rate limiting and request payload bounds
+- Defensive security headers, CORS, and Trusted Host filtering
+- Structured JSON logging and correlation ID propagation (X-Request-ID)
+- Liveness (/health), readiness (/ready), and operational metrics (/metrics)
 """
 
 import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from agents.compare_agent import CompareAgent
 from agents.extract_agent import ExtractAgent
@@ -25,7 +26,16 @@ from agents.fetch_agent import FetchAgent
 from agents.graph import SentinelQueryService
 from agents.synthesize_agent import SynthesizeAgent
 from api.errors import register_error_handlers
+from api.middleware import (
+    AuthenticationMiddleware,
+    MetricsMiddleware,
+    RateLimitMiddleware,
+    RequestIdMiddleware,
+    RequestSizeLimitMiddleware,
+    SecurityHeadersMiddleware,
+)
 from api.routes_ingest import router as ingest_router
+from api.routes_metrics import router as metrics_router
 from api.routes_providers import router as providers_router
 from api.routes_query import router as query_router
 from api.routes_sources import router as sources_router
@@ -37,11 +47,12 @@ from data_sources.news_api import NewsApiAdapter
 from ingestion.pipeline import IngestionPipeline
 from llm_providers.engine import LLMEngine
 from observability.langfuse_wrapper import get_tracer
+from observability.logging import configure_logging
 from retrieval.pinecone_store import PineconeVectorStore
 
 logger = logging.getLogger(__name__)
 
-API_VERSION = "0.3.0"
+API_VERSION = "0.1.0-rc1"
 
 
 def default_adapters(settings: Settings) -> dict[str, DataSourceAdapter]:
@@ -74,6 +85,8 @@ def create_app(
 ) -> FastAPI:
     """Build the app with any component overridden — tests pass fakes here."""
     resolved_settings = settings or get_settings()
+    configure_logging(resolved_settings)
+
     resolved_tracer = tracer if tracer is not None else get_tracer(resolved_settings)
     resolved_engine = engine or LLMEngine(settings=resolved_settings, tracer=resolved_tracer)
     resolved_store = store if store is not None else PineconeVectorStore(settings=resolved_settings)
@@ -138,11 +151,13 @@ def create_app(
         title="Sentinel API",
         version=API_VERSION,
         description=(
-            "Agentic financial research copilot. PRIVATE/LOCAL-ONLY: no "
-            "authentication yet — do not expose beyond localhost/private networks."
+            "Agentic financial research copilot. PRIVATE/LOCAL-ONLY: secured with configurable "
+            "single-user API key / Bearer authentication, rate limiting, and "
+            "structured observability."
         ),
         lifespan=lifespan,
     )
+
     application.state.settings = resolved_settings
     application.state.engine = resolved_engine
     application.state.store = resolved_store
@@ -158,11 +173,40 @@ def create_app(
     }
     application.state.query_service = resolved_service
 
+    # Middleware Registration
+    # Starlette executes middlewares in reverse order of addition (LIFO).
+    # Desired request flow:
+    # Metrics -> RequestId -> SecurityHeaders -> CORS -> TrustedHost ->
+    # SizeLimit -> RateLimit -> Auth -> App
+    application.add_middleware(AuthenticationMiddleware, settings=resolved_settings)
+    application.add_middleware(RateLimitMiddleware, settings=resolved_settings)
+    application.add_middleware(
+        RequestSizeLimitMiddleware, max_bytes=resolved_settings.max_request_body_bytes
+    )
+    if resolved_settings.parsed_allowed_hosts != ["*"]:
+        application.add_middleware(
+            TrustedHostMiddleware, allowed_hosts=resolved_settings.parsed_allowed_hosts
+        )
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=resolved_settings.parsed_cors_origins,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["*"],
+        expose_headers=["X-Request-ID", "Retry-After"],
+    )
+    application.add_middleware(SecurityHeadersMiddleware, settings=resolved_settings)
+    application.add_middleware(RequestIdMiddleware)
+    application.add_middleware(MetricsMiddleware)
+
+    # Routes & Error Handling
     application.include_router(query_router)
     application.include_router(ingest_router)
     application.include_router(sources_router)
     application.include_router(providers_router)
+    application.include_router(metrics_router)
     register_error_handlers(application)
+
     return application
 
 

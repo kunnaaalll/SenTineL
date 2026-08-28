@@ -126,8 +126,24 @@ class Settings(BaseSettings):
     # because endpoints may embed tokens in the URL.
     apex_endpoint_url: SecretStr | None = None
 
+    # Security & API Protection
+    auth_enabled: bool = False
+    auth_api_key: SecretStr | None = None
+    rate_limit_enabled: bool = True
+    rate_limit_requests_per_minute: int = 120
+    rate_limit_burst_limit: int = 30
+    max_request_body_bytes: int = 1_048_576  # 1 MB max request size
+    cors_allowed_origins: str = "http://127.0.0.1:3000,http://localhost:3000"
+    allowed_hosts: str = "*"
+    security_headers_enabled: bool = True
+
+    # Observability & Logging
+    log_format: str = "text"  # "text" for local dev, "json" for CloudWatch / staging / prod
+    log_level: str = "INFO"
+
     # Runtime environment -> Pinecone namespace for dev/prod isolation (spec 8.2)
     sentinel_env: str = "dev"
+    commit_sha: str = "dev"
 
     # SEC requires a descriptive User-Agent with contact info (spec 6.2).
     # Default is a placeholder: live EDGAR fetches refuse to run until a real
@@ -160,7 +176,28 @@ class Settings(BaseSettings):
             blockers.append("OPENAI_API_KEY")
         if resolve_secret(self.pinecone_api_key) is None:
             blockers.append("PINECONE_API_KEY")
+        if self.auth_enabled and resolve_secret(self.auth_api_key) is None:
+            blockers.append("AUTH_API_KEY (auth_enabled is true)")
         return blockers
+
+    @property
+    def is_auth_active(self) -> bool:
+        """True when authentication is enabled and an API key is configured."""
+        return self.auth_enabled and resolve_secret(self.auth_api_key) is not None
+
+    @property
+    def parsed_cors_origins(self) -> list[str]:
+        """Parsed list of allowed CORS origins."""
+        if not self.cors_allowed_origins:
+            return ["*"]
+        return [o.strip() for o in self.cors_allowed_origins.split(",") if o.strip()]
+
+    @property
+    def parsed_allowed_hosts(self) -> list[str]:
+        """Parsed list of allowed host headers."""
+        if not self.allowed_hosts or self.allowed_hosts.strip() == "*":
+            return ["*"]
+        return [h.strip() for h in self.allowed_hosts.split(",") if h.strip()]
 
     @property
     def sec_user_agent(self) -> str:

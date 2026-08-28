@@ -140,6 +140,7 @@ class HealthResponse(BaseModel):
     status: str = "ok"
     version: str
     env: str
+    commit_sha: str = "dev"
 
 
 class ReadyResponse(BaseModel):

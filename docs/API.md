@@ -1,64 +1,90 @@
-# Sentinel API
+# Sentinel API Specification
 
-FastAPI service exposing ingestion, the routed query paths (simple RAG vs
-multi-agent), and provider/source status.
-
-> **PRIVATE / LOCAL-ONLY.** There is no authentication in v1 by design
-> (`SENTINEL_SPEC.md` section 17). Never expose this service beyond
-> localhost or a private network. Run with:
->
-> ```bash
-> make run   # uvicorn api.main:app --host 127.0.0.1 --port 8000
-> ```
->
-> Interactive docs: <http://127.0.0.1:8000/docs>
-
-All request and response bodies are JSON. Every error — validation, upstream,
-or internal — uses one envelope:
-
-```json
-{ "error": { "code": "machine_readable_code", "message": "human summary", "details": "optional" } }
-```
-
-`details` on 422 responses contains only `loc` / `msg` / `type` per issue — raw
-input values are never echoed back. 500 responses carry a generic message;
-tracebacks stay in server logs.
+FastAPI service exposing document ingestion, complexity-routed query paths (simple RAG vs multi-agent), provider status, and operational metrics.
 
 ---
 
-## POST /query
+## 1. Authentication & Security
 
-Single question-answering entry point with **automatic complexity routing**
-(Phase 3): a deterministic classifier inspects the question first.
+In staging and production environments, Sentinel enforces single-user API protection (`backend/api/middleware.py`).
 
-- **simple** — one entity, no comparison vocabulary, at most one period → the
-  proven Phase 2 RAG chain answers (`rewrite → embed → retrieve → generate`).
-- **multi_hop** — two or more tickers, comparison vocabulary ("compare",
-  "versus", "year-over-year", …), or two or more period tokens → the agent team
-  runs (`fetch → extract → [compare] → synthesize`, see `docs/AGENT_DESIGN.md`).
-
-The request/response contract is identical on both branches; `agent_path`
-always starts with `classify` and shows which path executed.
-
-**Request**
-
-| Field | Type | Constraints | Notes |
-|---|---|---|---|
-| `question` | string | 1–4000 chars | required |
-| `top_k` | int | 1–20 | optional, default `RAG_TOP_K` (6) |
-| `filters.ticker` | string | ≤6 chars | optional |
-| `filters.source_type` | string | e.g. `sec_filing` | optional |
-| `filters.date_start` / `date_end` | ISO date | start ≤ end | optional |
+### Authentication Headers
+All non-exempt endpoints accept either:
+- `Authorization: Bearer <SENTINEL_AUTH_API_KEY>`
+- `X-API-Key: <SENTINEL_AUTH_API_KEY>`
 
 ```bash
-curl -s localhost:8000/query -H 'content-type: application/json' -d '{
-  "question": "What was Apple'\''s total net sales in fiscal 2024?",
-  "filters": {"ticker": "AAPL", "date_start": "2024-01-01"}
-}'
+curl -H "Authorization: Bearer your-staging-api-key" https://api.sentinel.internal/query ...
+```
+
+**Exempt Routes** (No auth required):
+- `GET /health` (Load balancer liveness probe)
+- `GET /ready` (Scheduler readiness probe)
+- `GET /docs`, `GET /redoc`, `GET /openapi.json` (OpenAPI documentation)
+
+### Request Correlation (`X-Request-ID`)
+Clients can pass a custom `X-Request-ID` header. If omitted, Sentinel generates a unique UUID4 and returns it on every HTTP response for distributed log correlation.
+
+### Rate Limiting & Protection
+- **Rate Limit**: Default 60 requests/minute with a burst allowance of 10 (`429 rate_limited` with `Retry-After: <seconds>` header).
+- **Body Size Limit**: Default 1MB (`413 payload_too_large`).
+- **Security Headers**: Standard defense-in-depth headers (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection`, `Referrer-Policy`, `Content-Security-Policy`).
+
+---
+
+## 2. Standard Error Envelope
+
+All error responses across all HTTP status codes return a uniform JSON envelope:
+
+```json
+{
+  "error": {
+    "code": "machine_readable_code",
+    "message": "Human readable summary of the error",
+    "details": []
+  }
+}
+```
+
+### Common Error Codes
+
+| Status | Code | Meaning |
+|---|---|---|
+| 400 | `bad_request` | Malformed request structure |
+| 401 | `unauthorized` | Missing or invalid API key / Bearer token |
+| 403 | `forbidden` | Action not permitted |
+| 404 | `not_found` | Resource or route not found |
+| 405 | `method_not_allowed` | HTTP method not supported for route |
+| 413 | `payload_too_large` | Request body exceeds configured byte limit |
+| 422 | `validation_error` | Request parameters failed schema validation |
+| 429 | `rate_limited` | Request quota exceeded (check `Retry-After`) |
+| 500 | `internal_server_error` | Unhandled internal exception (trace in logs) |
+| 502 | `source_fetch_failed` | External data source (EDGAR, News) unreachable |
+| 503 | `not_ready` / `vector_store_not_ready` / `no_embedding_provider` | Dependencies unavailable |
+| 504 | `gateway_timeout` | Upstream provider timed out |
+
+---
+
+## 3. Endpoints
+
+### POST /query
+Single question-answering entry point with **automatic complexity routing**.
+- **simple**: One entity, single period → Single-pass RAG (`rewrite → embed → retrieve → generate`).
+- **multi_hop**: Multiple entities or comparison words → Multi-agent team (`fetch → extract → compare → synthesize`).
+
+**Request**
+```json
+{
+  "question": "What was Apple's total net sales in fiscal 2024?",
+  "top_k": 5,
+  "filters": {
+    "ticker": "AAPL",
+    "date_start": "2024-01-01"
+  }
+}
 ```
 
 **Response** (`models.schemas.QueryResponse`)
-
 ```json
 {
   "answer": "Apple's fiscal 2024 total net sales were $391,035 million [1].",
@@ -79,78 +105,37 @@ curl -s localhost:8000/query -H 'content-type: application/json' -d '{
 }
 ```
 
-A multi-hop question returns the same shape with an `agent_path` like
-`["classify", "fetch", "extract", "compare", "synthesize"]`.
-
-- **Citation guarantees (both paths):** every citation maps to an
-  actually-retrieved chunk. Out-of-range or invented `[n]` markers are dropped;
-  insufficient evidence produces an explicit refusal with no fabricated
-  citations; agent-path degradation never removes citations, it rebuilds them
-  from real chunks (see `docs/AGENT_DESIGN.md`). `trace_url` is a Langfuse link
-  when tracing is configured, otherwise `null`.
-- **Errors:** `503 no_embedding_provider`, `503 vector_store_not_ready`,
-  `503 no_llm_provider`, `422 validation_error`. Internal node failures never
-  surface as stack traces — they degrade into grounded partial answers with a
-  `Limitations:` note in the answer text.
-
 ---
 
-## POST /agents/query
-
-Same contract as `/query` but **forces the multi-agent path**, bypassing the
-classifier for the run while still recording `classify` in `agent_path`.
-Use it when you know the question needs evidence gathering across sources —
-or when the heuristic classifier would misroute an unusual phrasing.
-
-```bash
-curl -s localhost:8000/agents/query -H 'content-type: application/json' \
-  -d '{"question": "Compare AAPL and MSFT revenue for FY2024"}'
-```
-
-**Response**: identical schema. Example `agent_path`:
-`["classify", "fetch", "extract", "compare", "synthesize"]` (the `compare`
-node is skipped automatically when extracted facts span a single entity and
-period).
-
-Guarantees specific to this route:
-
-- Every fact carries server-forced `source_chunk_id` provenance — the model
-  cannot invent where a number came from.
-- Missing/conflicting comparison cells are flagged in the answer, never
-  silently dropped.
-- Unavailable sources (e.g. news without `NEWS_API_KEY`) are named in the
-  answer's limitations instead of failing the request.
-- Internal diagnostics (`node_errors`, ingestion keys) stay server-side; the
-  response body is exactly `{answer, citations, agent_path, trace_url}`.
-
-**Errors:** same envelope as `/query`.
-
----
-
-## POST /ingest
-
-Fetch → chunk → extract entities → embed → store, per document, idempotently.
+### POST /agents/query
+Forces the multi-agent research path (`fetch → extract → compare → synthesize`) regardless of heuristic classification.
 
 **Request**
+```json
+{
+  "question": "Compare AAPL and MSFT revenue and gross margins for FY2024"
+}
+```
 
-| Field | Type | Constraints | Notes |
-|---|---|---|---|
-| `source_type` | string | default `sec_filing` | must match a registered adapter |
-| `ticker` | string | or `query` required | SEC ticker lookup |
-| `query` | string | 2–500 chars | EDGAR full-text search path |
-| `filing_type` | string | e.g. `10-K`, `8-K` | optional |
-| `date_range` | `[start, end]` | ISO dates, start ≤ end | filing-date window |
-| `limit` | int | 1–25, default 5 | max documents |
+**Response**: Identical `QueryResponse` envelope with multi-agent execution path.
 
-```bash
-curl -s localhost:8000/ingest -H 'content-type: application/json' -d '{
-  "ticker": "AAPL", "filing_type": "10-K",
-  "date_range": ["2024-01-01", "2024-12-31"], "limit": 1
-}'
+---
+
+### POST /ingest
+Fetches documents from SEC EDGAR or news providers, chunks prose and tables, extracts financial entities, generates vector embeddings, and stores vectors into Pinecone.
+
+**Request**
+```json
+{
+  "source_type": "sec_filing",
+  "ticker": "AAPL",
+  "filing_type": "10-K",
+  "date_range": ["2024-01-01", "2024-12-31"],
+  "limit": 1
+}
 ```
 
 **Response**
-
 ```json
 {
   "documents_fetched": 1,
@@ -166,64 +151,67 @@ curl -s localhost:8000/ingest -H 'content-type: application/json' -d '{
 }
 ```
 
-Partial failure semantics: document-level errors do not abort the run — each
-lands in `failures` as `{source_id, stage, error}` and remaining documents are
-processed. A wholesale fetch failure returns `502 source_fetch_failed`.
-Re-ingesting a source deletes its previous vectors first
-(`DELETE_BEFORE_REINGEST=true`), so runs are safely repeatable.
-
 ---
 
-## GET /sources
+### GET /metrics
+Operational metrics snapshot for monitoring and alerting.
 
-Which data sources are usable right now (`enabled && probe passed`):
-
-```json
-{ "sec_edgar": true, "news_api": false, "apex": false }
-```
-
-`news_api` reflects `NEWS_API_KEY` presence (Financial Modeling Prep by
-default; `NEWS_API_PROVIDER` selects the registry entry). The optional APEX
-adapter stays disabled unless explicitly enabled (`adapters.yaml`, spec
-section 6.4).
-
-## GET /providers
-
-LLM provider chain state:
-
+**Response**
 ```json
 {
-  "available": ["openai", "ollama"],
-  "generation_default": "openai",
-  "embedding_available": true,
-  "embedding_model": "text-embedding-3-small"
+  "uptime_seconds": 1240.5,
+  "http": {
+    "total_requests": 340,
+    "status_codes": {
+      "200": 335,
+      "401": 2,
+      "429": 3
+    },
+    "rate_limit_rejections": 3,
+    "auth_rejections": 2,
+    "payload_too_large_rejections": 0,
+    "routes": {
+      "POST /query": { "requests": 210, "errors": 0, "avg_duration_ms": 350.2 }
+    }
+  },
+  "queries": {
+    "total": 210,
+    "simple": 180,
+    "multi_hop": 30,
+    "citations_returned": 580,
+    "avg_duration_ms": 350.2
+  },
+  "ingestion": {
+    "documents_ingested": 12,
+    "chunks_indexed": 410,
+    "documents_failed": 0
+  },
+  "providers": {
+    "calls": { "openai": 240 },
+    "errors": { "openai": 0 },
+    "tokens": {
+      "openai": { "prompt_tokens": 82000, "completion_tokens": 14000, "total_tokens": 96000 }
+    }
+  }
 }
 ```
 
-Availability probes are cached briefly; this endpoint forces a refresh.
+---
 
-## GET /health
-
-Liveness. Always `200 {"status": "ok", "version": ..., "env": ...}` when the
-process is up.
-
-## GET /ready
-
-Readiness = can actually serve `/query` and `/ingest`. Returns
-`200 {"status": "ready", "checks": {...}}` when an embedding-capable provider
-AND a configured vector store are present, otherwise
-`503 {"status": ..., "checks": {...}}` under code `not_ready` with the failing
-check named. The API intentionally starts without any credentials (degraded
-mode) — endpoints respond consistently rather than crash-looping.
+### GET /health
+Liveness probe. Returns `200 {"status": "ok", "version": "0.1.0-rc1", "env": "staging", "commit_sha": "git-049a0db"}` while the process is running.
 
 ---
 
-## Known limitations (Phase 3)
+### GET /ready
+Readiness probe. Returns `200 {"status": "ready", "checks": {...}}` when an embedding provider and vector store are configured and healthy, or `503` with degraded details when unconfigured.
 
-- No authentication, rate limiting, or CORS hardening — local-only.
-- Routing heuristics are deterministic, not an LLM classifier; force the agent
-  path with `/agents/query` when in doubt.
-- News coverage depends on the configured provider's history window;
-  earnings-call transcripts are not yet ingestible.
-- `chunks_truncated_for_metadata > 0` means some chunk text was shortened to fit
-  Pinecone's ~40KB metadata cap — retrieval fidelity for those chunks is reduced.
+---
+
+### GET /sources
+Returns status and availability of configured data adapters (`sec_edgar`, `news_api`, `apex`).
+
+---
+
+### GET /providers
+Returns list of available LLM providers, active embedding model, and default generation provider.

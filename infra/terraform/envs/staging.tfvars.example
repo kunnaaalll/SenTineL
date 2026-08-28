@@ -1,0 +1,43 @@
+# Sentinel — Staging environment variables (example template)
+# Copy to envs/staging.tfvars and customize before running terraform plan
+
+project_name = "sentinel"
+environment  = "staging"
+aws_region   = "us-east-1"
+
+# Networking
+vpc_cidr             = "10.10.0.0/16"
+public_subnet_cidrs  = ["10.10.1.0/24", "10.10.2.0/24"]
+private_subnet_cidrs = ["10.10.10.0/24", "10.10.11.0/24"]
+enable_nat_gateway   = true
+enable_vpc_endpoints = true
+
+# Container Image References (Set by CI pipeline)
+backend_container_image  = "123456789012.dkr.ecr.us-east-1.amazonaws.com/sentinel-backend:staging-latest"
+frontend_container_image = "123456789012.dkr.ecr.us-east-1.amazonaws.com/sentinel-frontend:staging-latest"
+
+# Compute sizing
+backend_cpu            = 512
+backend_memory_mb      = 1024
+backend_desired_count  = 1
+frontend_cpu           = 256
+frontend_memory_mb     = 512
+frontend_desired_count = 1
+
+# Security & API Protection
+auth_enabled            = true
+alb_ingress_cidr_blocks = ["0.0.0.0/0"] # Restrict to office/VPN CIDRs in staging if required
+
+# Observability & Monitoring
+log_retention_days              = 14
+enable_monitoring               = true
+alarm_notification_emails       = ["staging-alerts@example.com"]
+alarm_cpu_threshold_percent     = 80
+alarm_memory_threshold_percent  = 85
+alarm_5xx_threshold_count       = 5
+alarm_latency_threshold_seconds = 2.0
+
+extra_tags = {
+  DeploymentStage = "staging"
+  Owner           = "engineering"
+}

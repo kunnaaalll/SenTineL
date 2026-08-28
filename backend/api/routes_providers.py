@@ -24,7 +24,11 @@ def providers(request: Request) -> ProvidersResponse:
 @router.get("/health", response_model=HealthResponse)
 def health(request: Request) -> HealthResponse:
     settings = request.app.state.settings
-    return HealthResponse(version=request.app.version, env=settings.sentinel_env)
+    return HealthResponse(
+        version=request.app.version,
+        env=settings.sentinel_env,
+        commit_sha=settings.commit_sha,
+    )
 
 
 @router.get("/ready", response_model=ReadyResponse)

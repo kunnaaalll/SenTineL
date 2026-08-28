@@ -341,6 +341,7 @@ class TestInfoEndpoints:
         assert body["status"] == "ok"
         assert body["version"] == API_VERSION
         assert body["env"] == "dev"
+        assert body["commit_sha"] == "dev"
 
     def test_ready_ok_when_dependencies_configured(self, clean_settings):
         client, _ = build_client(clean_settings=clean_settings)

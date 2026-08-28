@@ -1,21 +1,29 @@
-# Sentinel Architecture — Phase 3 state
+# Sentinel Architecture — Phase 5 state
 
 Complements `SENTINEL_SPEC.md` (full target architecture) and
-`docs/PRODUCTION_AUDIT.md` (Phase 0 baseline). This document describes what is
-actually built after Phase 2: provider layer, observability, ingestion
-pipeline, simple RAG path, and the API.
+`docs/PRODUCTION_AUDIT.md` (Phase 0 baseline). This document describes the
+complete standalone system after Phase 5: Next.js frontend, routed agent team,
+provider layer, observability, ingestion pipeline, simple RAG path, and the API.
 
 ```
-POST /ingest ──▶ IngestionPipeline ──▶ VectorStore (Pinecone)
-                    │        ▲                ▲
-                    │        │                │ search(add/delete)
-     DataSourceAdapter       │                │
-     (sec_edgar today)       │                │
-                            LLMEngine ◀──────┘ embed()
-                    ▲    (fallback chain)      ▲
-                    │ traced by                 │
-             LangfuseWrapper              POST /query ──▶ RagChain
-                                                                 │ rewrite → embed → retrieve → generate → cite
+Browser ──▶ Next.js Frontend (Port 3000)
+                 │  (/backend/* reverse proxy rewrite)
+                 ▼
+          FastAPI Backend (Port 8000)
+                 │
+  ┌──────────────┴──────────────┐
+  ▼                             ▼
+POST /ingest               POST /query | POST /agents/query
+  │                             │
+  ▼                             ▼
+IngestionPipeline         LangGraph Agent Team / RagChain
+  │        ▲                    │
+  │        │ (embed)            ├──▶ FetchAgent (live ingestion)
+  │        │                    ├──▶ ExtractAgent (provenance-tagged facts)
+  ▼        │                    ├──▶ CompareAgent (entity/period matrix)
+VectorStore (Pinecone)          └──▶ SynthesizeAgent (cited answers [n])
+           ▲                             │
+           └─────────────────────────────┘ (search / retrieve)
 ```
 
 ## Import & configuration model
@@ -189,6 +197,39 @@ diagnostics (`node_errors`, ingestion keys) never enter response bodies.
 The APEX adapter remains unregistered and disabled (spec section 6.4) — it is
 not part of any request path.
 
+## Frontend layer (`frontend/` — Phase 5)
+
+Next.js 16 App Router application built with React 19, TypeScript, and Tailwind CSS v4.
+
+```
+frontend/
+├── app/
+│   ├── page.tsx              # Research chat copilot (ChatWindow)
+│   ├── sources/page.tsx      # Ingestion & data source control panel (SourceUploadPanel)
+│   ├── health/route.ts       # Liveness probe (GET /health)
+│   └── layout.tsx            # Navigation header, StatusBar, footer disclaimer
+├── components/
+│   ├── ChatWindow.tsx        # Conversation state, prompt suggestions, cancellation
+│   ├── MessageBubble.tsx     # Markdown answer, citation list, limitations block
+│   ├── CitationCard.tsx      # Accessible card with score, excerpt, source links
+│   ├── AgentTraceViewer.tsx  # Interactive pipeline node trace display
+│   ├── SourceUploadPanel.tsx # Validated SEC & news ingestion forms
+│   ├── StatusBar.tsx         # Backend availability & readiness badge
+│   └── AnswerMarkdown.tsx    # GFM Markdown rendering with interactive [n] triggers
+├── lib/
+│   ├── api.ts                # Strongly-typed API client with abort & error normalization
+│   └── types.ts              # Frontend TypeScript DTOs matching backend schemas
+└── tests/                    # 71 Vitest + Testing Library offline component tests
+```
+
+### Key Architectural Principles:
+
+1. **Zero Provider Secrets in Frontend**: The browser never calls external LLMs or vector stores directly. All operations pass through the backend API.
+2. **Reverse Proxy Routing**: `next.config.js` sets up an async rewrite mapping `/backend/:path*` to `${BACKEND_ORIGIN:-http://127.0.0.1:8000}/:path*`. In Docker Compose, `BACKEND_ORIGIN=http://backend:8000` is consumed internally, eliminating CORS issues and client URL leakage.
+3. **Resilience & Cancellation**: `lib/api.ts` transparently manages timeout timers (`AbortSignal.timeout`) and user-triggered request aborts, mapping network/HTTP errors into normalized `ApiError` instances with user-friendly remediation messages.
+4. **Accessible Evidence & Verification**: Answers render inline `[n]` citation badges that interactively highlight and toggle the corresponding `CitationCard`. Multi-agent executions surface node steps and Langfuse trace links via `AgentTraceViewer`.
+5. **A11y & Motion Compliance**: WCAG AA color contrast, complete keyboard operability (`Enter` to submit, `Escape` to cancel), `aria-live` status regions for screen readers, and `prefers-reduced-motion` CSS overrides.
+
 ## Configuration & deployment model
 
 - **Settings** (`config/settings.py`): environment-first, then repo `.env`.
@@ -200,16 +241,16 @@ not part of any request path.
 - **Live-EDGAR gate**: `SecEdgarAdapter.fetch` refuses to issue network I/O
   while the SEC contact address is blank or an example.com-family placeholder
   — SEC fair-access compliance is enforced at the point of use.
-- **Container** (`infra/Dockerfile.backend`): three stages — builder (venv
-  from `requirements-prod-lock.txt`, the runtime-only subset of the dev lock),
-  `test` (full dev lock; hermetic suite inside Linux), and `production`
-  (non-root uid 10001, read-only-FS compatible, `PYTHONPATH=/app/backend`
-  preserving the source-root import layout, exec-form uvicorn as PID 1,
-  bounded graceful shutdown, `/health` HEALTHCHECK).
-- **Compose** (`infra/docker-compose.yml`): backend-only stack that boots with
-  zero credentials; secrets arrive solely via optional `env_file`;
-  loopback-only port publishing; hardened runtime options. The frontend will
-  join as a sibling service in Phase 5.
+- **Containers**:
+  - `infra/Dockerfile.backend`: Python 3.11-slim, non-root user 10001 (`sentinel:sentinel`), read-only root FS, `/health` HEALTHCHECK.
+  - `infra/Dockerfile.frontend`: Node 20-alpine, non-root user 1000 (`node:node`), standalone Next.js build output, `/health` HEALTHCHECK.
+- **Compose** (`infra/docker-compose.yml`): Full-stack configuration running both `sentinel-backend` and `sentinel-frontend` on internal `sentinel` bridge network. Both services publish only on loopback (`127.0.0.1:8000` and `127.0.0.1:3000`) by default.
+- **Terraform** (`infra/terraform/`): pinned, validated, resource-free AWS
+  skeleton — extension points only; nothing applied. Remote state stays an
+  explicitly-marked example until bootstrap.
+- **Contract tests**: `backend/tests/test_container_contract.py` pins the
+  image/compose/import-safety contracts inside the offline suite, so drift
+  fails `pytest` before it reaches CI's real build.
 - **Terraform** (`infra/terraform/`): pinned, validated, resource-free AWS
   skeleton — extension points only; nothing applied. Remote state stays an
   explicitly-marked example until bootstrap.

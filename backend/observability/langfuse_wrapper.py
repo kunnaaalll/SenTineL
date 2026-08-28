@@ -42,6 +42,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from config.settings import Settings, get_settings, resolve_secret
+from observability.logging import get_current_request_id
 
 logger = logging.getLogger(__name__)
 
@@ -298,6 +299,10 @@ class LangfuseTracer(Tracer):
         metadata: dict[str, Any] | None = None,
     ) -> Trace:
         trace_id = uuid.uuid4().hex
+        meta = dict(metadata or {})
+        req_id = get_current_request_id()
+        if req_id and "request_id" not in meta:
+            meta["request_id"] = req_id
         try:
             start_span = getattr(self._client, "start_span", None)
             if callable(start_span) and not hasattr(self._client, "trace"):
@@ -309,7 +314,7 @@ class LangfuseTracer(Tracer):
                 id=trace_id,
                 name=name,
                 input=sanitize_metadata(input),
-                metadata=sanitize_metadata(metadata),
+                metadata=sanitize_metadata(meta),
             )
             return LangfuseTrace(
                 sdk_trace, name=name, input_data=input, trace_id=trace_id, host=self._host

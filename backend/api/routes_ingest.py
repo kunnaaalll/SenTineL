@@ -4,6 +4,7 @@ from fastapi import APIRouter, Request
 
 from api.errors import ApiError
 from api.schemas import IngestionFailureModel, IngestionResponse, IngestRequest
+from observability.metrics import METRICS
 
 router = APIRouter()
 
@@ -29,9 +30,19 @@ def ingest(body: IngestRequest, request: Request) -> IngestionResponse:
 
     try:
         stats = pipeline.ingest(body.to_query_params(), source_type=body.source_type)
+        METRICS.record_ingest(
+            documents_count=stats.documents_ingested,
+            chunks_count=stats.chunks_indexed,
+            duration_ms=stats.duration_ms,
+            ok=stats.ok,
+        )
     except ValueError as exc:
+        METRICS.record_ingest(documents_count=0, chunks_count=0, duration_ms=0.0, ok=False)
         # Unknown source_type or unavailable adapter: a client/config problem.
         raise ApiError(400, "invalid_source", str(exc)) from exc
+    except Exception:
+        METRICS.record_ingest(documents_count=0, chunks_count=0, duration_ms=0.0, ok=False)
+        raise
 
     if stats.documents_fetched == 0 and any(f.stage == "fetch" for f in stats.failures):
         detail = [failure.__dict__ for failure in stats.failures]

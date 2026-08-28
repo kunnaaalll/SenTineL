@@ -1,0 +1,65 @@
+# Sentinel frontend — production image (spec section 14.1).
+#
+# Build from the REPO ROOT (the build context):
+#     docker build -f infra/Dockerfile.frontend -t sentinel-frontend:local .
+#
+# Multi-stage build for Next.js with standalone output:
+#   1. deps:      installs dependencies from locked package-lock.json
+#   2. builder:   builds the Next.js standalone application
+#   3. production: production runtime with non-root unprivileged node user
+#
+# Backend origin is configured at RUNTIME via BACKEND_ORIGIN (default: http://backend:8000
+# or http://127.0.0.1:8000); no secret is ever baked into any layer.
+
+# ---------------------------------------------------------------------------
+# Stage 1 — Dependencies
+# ---------------------------------------------------------------------------
+FROM node:20-alpine AS deps
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+
+# ---------------------------------------------------------------------------
+# Stage 2 — Builder
+# ---------------------------------------------------------------------------
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY frontend/ ./
+
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+
+RUN npm run build
+
+# ---------------------------------------------------------------------------
+# Stage 3 — Production Runtime
+# ---------------------------------------------------------------------------
+FROM node:20-alpine AS production
+
+LABEL org.opencontainers.image.title="sentinel-frontend" \
+      org.opencontainers.image.description="Sentinel agentic financial research copilot UI" \
+      org.opencontainers.image.source="https://github.com/kunalparmar/sentinel"
+
+WORKDIR /app
+
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000 \
+    HOSTNAME="0.0.0.0"
+
+USER node
+
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=node:node /app/.next/standalone ./
+COPY --from=builder --chown=node:node /app/.next/static ./.next/static
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD ["node", "-e", "const http = require('http'); http.get('http://127.0.0.1:3000/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1));"]
+
+CMD ["node", "server.js"]

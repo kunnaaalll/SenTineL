@@ -1,0 +1,138 @@
+@import "tailwindcss";
+
+/*
+ * Sentinel design tokens.
+ *
+ * Light is the default; dark values apply under prefers-color-scheme: dark
+ * (no toggle in v1 — the UI follows the OS setting). Every color pair used
+ * for text/background meets WCAG AA contrast on its surface. State colors
+ * are always paired with an icon or text label so nothing relies on hue
+ * alone.
+ */
+
+:root {
+  --background: #f3f5f9;
+  --surface: #ffffff;
+  --surface-muted: #eef1f6;
+  --surface-raised: #ffffff;
+
+  --ink: #0f172a;
+  --ink-soft: #475569;
+  --ink-faint: #64748b;
+
+  --line: #dbe2ec;
+  --line-strong: #b6c2d4;
+
+  --accent: #1d4ed8;
+  --accent-strong: #1e40af;
+  --accent-soft: #e4ebfd;
+  --on-accent: #ffffff;
+
+  --success: #166534;
+  --success-soft: #dcfce7;
+  --warning-ink: #713f12;
+  --warning: #a16207;
+  --warning-soft: #fef3c7;
+  --danger: #b91c1c;
+  --danger-soft: #fee2e2;
+
+  --focus: #2563eb;
+
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.05), 0 1px 3px rgb(15 23 42 / 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0b1220;
+    --surface: #111a2c;
+    --surface-muted: #17233a;
+    --surface-raised: #182540;
+    --ink: #e6edf7;
+    --ink-soft: #b6c2d6;
+    --ink-faint: #8fa0b8;
+
+    --line: #24334d;
+    --line-strong: #38496a;
+
+    --accent: #79a7ff;
+    --accent-strong: #93b8ff;
+    --accent-soft: #1c2c4d;
+    --on-accent: #0b1220;
+
+    --success: #6ee7a0;
+    --success-soft: #10331f;
+    --warning-ink: #fde68a;
+    --warning: #fbbf24;
+    --warning-soft: #33270c;
+    --danger: #fca5a5;
+    --danger-soft: #3d1414;
+
+    --focus: #93b8ff;
+
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4);
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-raised: var(--surface-raised);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-ink: var(--warning-ink);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+/* Visible focus everywhere; offset keeps it legible on tinted surfaces. */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Motion only when the user has not asked for stillness. */
+@media (prefers-reduced-motion: no-preference) {
+  .transition-enabled {
+    transition-property: background-color, border-color, color, box-shadow;
+    transition-duration: 150ms;
+    transition-timing-function: ease-out;
+  }
+
+  @keyframes sentinel-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.35;
+    }
+  }
+
+  .animate-pulse-dot {
+    animation: sentinel-pulse 1.4s ease-in-out infinite;
+  }
+}

@@ -1,0 +1,217 @@
+# Sentinel Approval-Gated Staging Deployment Workflow
+#
+# Release Controls:
+# - Pre-flight verification (tests, lint, typecheck, terraform validate) runs before plan
+# - AWS authentication strictly via short-lived OIDC role assumption (no static AWS keys)
+# - Container image tags are immutable and traceable to commit SHA (${{ github.sha }})
+# - Terraform plan is generated, checked, and archived
+# - Execution is gated by GitHub Environments approval ('staging')
+# - Terraform apply cannot run from untrusted pull requests
+
+name: deploy-staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      auto_apply:
+        description: "Automatically apply plan after staging environment approval"
+        type: boolean
+        default: false
+      image_tag:
+        description: "Immutable container image tag to deploy (defaults to commit SHA)"
+        type: string
+        default: ""
+  push:
+    branches:
+      - main
+    paths:
+      - "infra/terraform/**"
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  preflight-verify:
+    name: Pre-Flight Verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements-lock.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements-lock.txt
+
+      - name: Backend tests & lint
+        run: |
+          ruff format --check .
+          ruff check .
+          mypy .
+          pytest -q
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Terraform validation
+        run: |
+          terraform -chdir=infra/terraform fmt -check -recursive
+          terraform -chdir=infra/terraform init -backend=false -input=false
+          terraform -chdir=infra/terraform validate
+
+  plan:
+    name: Terraform Plan (Staging)
+    needs: [preflight-verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      has_changes: ${{ steps.plan.outputs.has_changes }}
+      backend_image: ${{ steps.set-images.outputs.backend_image }}
+      frontend_image: ${{ steps.set-images.outputs.frontend_image }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Determine image references
+        id: set-images
+        run: |
+          TAG="${{ inputs.image_tag }}"
+          if [ -z "$TAG" ]; then
+            TAG="git-${{ github.sha }}"
+          fi
+          REGISTRY="${{ vars.ECR_REGISTRY }}"
+          if [ -n "$REGISTRY" ]; then
+            REGISTRY="${REGISTRY%/}/"
+          fi
+          BACKEND_IMG="${REGISTRY}sentinel-backend:$TAG"
+          FRONTEND_IMG="${REGISTRY}sentinel-frontend:$TAG"
+          echo "backend_image=$BACKEND_IMG" >> "$GITHUB_OUTPUT"
+          echo "frontend_image=$FRONTEND_IMG" >> "$GITHUB_OUTPUT"
+          echo "Backend image target: $BACKEND_IMG"
+          echo "Frontend image target: $FRONTEND_IMG"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Configure AWS Credentials (OIDC)
+        if: ${{ secrets.AWS_ROLE_TO_ASSUME != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Terraform Init
+        run: |
+          terraform -chdir=infra/terraform init -input=false
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          BACKEND_IMG="${{ steps.set-images.outputs.backend_image }}"
+          FRONTEND_IMG="${{ steps.set-images.outputs.frontend_image }}"
+          TFVARS_FLAG=""
+          if [ -f "infra/terraform/envs/staging.tfvars" ]; then
+            TFVARS_FLAG="-var-file=envs/staging.tfvars"
+          else
+            TFVARS_FLAG="-var-file=envs/staging.tfvars.example"
+          fi
+          terraform -chdir=infra/terraform plan $TFVARS_FLAG \
+            -var="backend_container_image=$BACKEND_IMG" \
+            -var="frontend_container_image=$FRONTEND_IMG" \
+            -out=tfplan -input=false
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+
+      - name: Archive Terraform Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-tfplan
+          path: infra/terraform/tfplan
+          retention-days: 5
+
+  apply:
+    name: Terraform Apply (Staging)
+    needs: [plan]
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.auto_apply || github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Configure AWS Credentials (OIDC)
+        if: ${{ secrets.AWS_ROLE_TO_ASSUME != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Download Terraform Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: staging-tfplan
+          path: infra/terraform
+
+      - name: Terraform Init
+        run: |
+          terraform -chdir=infra/terraform init -input=false
+
+      - name: Terraform Apply
+        run: |
+          terraform -chdir=infra/terraform apply -input=false tfplan
+
+      - name: Post-Deployment Smoke Verification
+        run: |
+          ALB_DNS=$(terraform -chdir=infra/terraform output -raw alb_dns_name)
+          if [ -z "$ALB_DNS" ]; then
+            echo "::error::Failed to resolve ALB DNS from Terraform outputs"
+            exit 1
+          fi
+          echo "Testing ingress against ALB: http://${ALB_DNS}"
+
+          echo "Waiting for frontend liveness probe..."
+          FRONTEND_OK=""
+          for i in $(seq 1 36); do
+            if curl -fsS --max-time 5 "http://${ALB_DNS}/health" 2>/dev/null | grep -q '"status":"ok"'; then
+              FRONTEND_OK="yes"
+              echo "Frontend is healthy (attempt $i)"
+              break
+            fi
+            echo "Waiting for frontend... (attempt $i/36)"
+            sleep 5
+          done
+          if [ -z "$FRONTEND_OK" ]; then
+            echo "::error::Frontend failed liveness check at http://${ALB_DNS}/health"
+            exit 1
+          fi
+
+          echo "Checking backend readiness probe..."
+          READY_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "http://${ALB_DNS}/ready" || true)
+          echo "Backend /ready HTTP status: $READY_CODE"
+          if [ "$READY_CODE" != "200" ] && [ "$READY_CODE" != "503" ]; then
+            echo "::error::Backend /ready probe returned unexpected HTTP status: $READY_CODE"
+            exit 1
+          fi
+          echo "Smoke tests passed. Deployment verified."

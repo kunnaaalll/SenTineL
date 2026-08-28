@@ -4,39 +4,45 @@ Agentic financial research copilot — RAG over SEC filings, earnings-call trans
 
 Full architecture, API contracts, and build phases: see `SENTINEL_SPEC.md`. Phase 2 deep-dive: `docs/ARCHITECTURE.md`, `docs/API.md`. Phase 3 deep-dive: `docs/AGENT_DESIGN.md`.
 
-## Status: Phase 3 + infrastructure foundations
+## Status: Phase 5 (Production Next.js Frontend + Full Standalone Stack)
 
-Latest milestone (Phase 3 code unchanged): Git initialized, backend
-containerized (`infra/Dockerfile.backend`), offline-capable Compose stack,
-production config hardening (fail-fast prod mode, SecretStr credentials,
-live-EDGAR contact gate), Terraform skeleton under `infra/terraform/`, and a
-five-job CI pipeline including in-container tests and secret scanning.
-**No cloud resources were provisioned** — deployment remains future work.
-See `docs/DEPLOYMENT.md`.
-
-Previously — Phase 3: production news adapter, LangGraph agent team, routed API:
+Latest milestone: Complete production-quality Next.js frontend milestone implemented with TypeScript, Tailwind CSS, typed API client with abort/timeout support, accessible chat UI with citations, agent trace viewer, and data source ingestion dashboard.
 
 Implemented:
 
-- **Agent team (`backend/agents/`)** — typed `AgentState` contract plus a compiled LangGraph graph (`fetch → extract → (compare?) → synthesize`) serving multi-hop questions. Deterministic routing keeps the proven simple RAG path untouched for single-entity questions; `/agents/query` forces the agent path. Every node degrades to grounded partial output instead of raising; fetch live-ingestion is budgeted and loop-protected; extract enforces server-side provenance; compare aligns entities/periods flagging every gap; synthesize validates inline `[n]` citations against real chunks. See `docs/AGENT_DESIGN.md`.
-- **Production news adapter (`backend/data_sources/news_api.py`)** — `DataSourceAdapter` implementation defaulting to Financial Modeling Prep with a provider registry, ticker/date-range/keyword queries, bounded pagination, retry/backoff with `Retry-After`, no retry on auth/invalid-request, deterministic dedup by URL/content hash, HTML-sanitized text, and key-safe logging. Unavailable (no key) rather than broken when unconfigured.
-- `backend/api/` — adds automatic complexity routing on `POST /query` and forced multi-agent execution on `POST /agents/query`; same response shape (`answer`, `citations`, `agent_path`, `trace_url`) on both.
-- Phase 2: provider fallback engine, Langfuse-or-noop tracing, ingestion pipeline, simple RAG chain with enforced citations.
-- Phase 1 (data layer): SEC EDGAR adapter (retry/backoff), financial chunker, Pinecone store (`delete_source` + metadata cap).
-
-Not yet (later phases): frontend chat UI, real cloud deployment, auth, APEX adapter, fine-tuning.
+- **Frontend UI (`frontend/`)** — Next.js App Router (`/` and `/sources`), Tailwind CSS with dark mode and `prefers-reduced-motion` support, full keyboard navigation (WCAG AA compliant).
+  - `ChatWindow` — local conversational state, example queries, in-flight cancellation via Escape/button, loading skeletons, aria-live status announcements.
+  - `MessageBubble` — markdown-safe answer rendering with GFM tables, inline interactive `[n]` citation markers, structured `Limitations:` caveat panels, explicit insufficient-evidence refusals.
+  - `CitationCard` — expandable evidence cards detailing source title, excerpt, filing date, match score, section, and public EDGAR/news URLs.
+  - `AgentTraceViewer` — collapsible multi-agent execution pipeline display (`classify → fetch → extract → compare → synthesize`) with Langfuse trace links.
+  - `SourceUploadPanel` — SEC filing and market news ingestion forms with client-side validation, progress indicators, and detailed indexed chunk summaries.
+  - `StatusBar` — live backend readiness pill polling `/ready` with degraded/offline state handling.
+  - `lib/api.ts` — typed client for all backend endpoints (`/query`, `/agents/query`, `/ingest`, `/sources`, `/providers`, `/health`, `/ready`) supporting timeouts, AbortSignal cancellation, safe error normalization, and runtime reverse-proxy routing via `BACKEND_ORIGIN`.
+- **Frontend Containerization (`infra/Dockerfile.frontend`)** — Multi-stage standalone Next.js image running unprivileged (`USER node`, UID 1000), `/health` liveness probe.
+- **Docker Compose Stack (`infra/docker-compose.yml`)** — Standalone dual-service stack (`sentinel-backend` + `sentinel-frontend`) attached to bridge network with loopback bindings (ports 8000 and 3000).
+- **Backend & Core Engine (`backend/`)** — 372 offline unit tests, LangGraph agent team (`fetch → extract → compare → synthesize`), Financial Modeling Prep news adapter, SEC EDGAR adapter, fallback LLM engine, Pinecone vector store, and Langfuse tracing.
 
 ## Setup
+
+### Backend
 
 ```bash
 make setup            # creates .venv (Python 3.11) and installs backend/requirements-dev.txt
 cp .env.example .env  # optional — an empty file is a valid offline configuration
+make run              # starts FastAPI on http://127.0.0.1:8000
 ```
 
-### Docker quickstart
+### Frontend
 
-The backend ships as a hardened production image (non-root, read-only-FS
-compatible, locked runtime-only dependencies) with a local Compose stack:
+```bash
+cd frontend
+npm ci                # install locked dependencies from package-lock.json
+npm run dev           # starts Next.js dev server on http://localhost:3000
+```
+
+### Docker quickstart (Full Stack)
+
+The complete application (FastAPI backend + Next.js frontend) ships as hardened production containers:
 
 ```bash
 # fully offline — no credentials needed to boot:
@@ -47,10 +53,7 @@ cp .env.example .env   # fill in OPENAI_API_KEY / PINECONE_API_KEY / ...
 docker compose -f infra/docker-compose.yml up --build
 ```
 
-`/health` is 200 while the process lives; `/ready` returns 503 until the
-embedding provider + vector store are configured. The stack publishes on
-127.0.0.1 only — v1 has no auth. Details, image contract, and Terraform
-workflow: `docs/DEPLOYMENT.md`.
+Access the UI at <http://127.0.0.1:3000> and the backend API at <http://127.0.0.1:8000>. Both publish on loopback by default. Detail: `docs/DEPLOYMENT.md`.
 
 Runtime dependencies live in `backend/requirements.txt`; dev tools in
 `backend/requirements-dev.txt`. Reproducible installs use the pinned
@@ -157,35 +160,68 @@ make test-one T="backend/tests/test_pipeline.py::TestIdempotency"
 
 ## Quality gates
 
-Configured in the root `pyproject.toml`:
+Both backend and frontend have strict quality gates:
 
 ```bash
+# Full repository check
+make check-all   # runs backend lint/typecheck/tests + frontend lint/typecheck/format/tests/build
+
+# Backend gates
 make fmt         # ruff format + safe lint autofixes
 make lint        # ruff format --check + ruff check
 make typecheck   # mypy
-make check       # all of the above + tests
+make test        # pytest offline suite (372 tests)
+
+# Frontend gates (in frontend/)
+npm run check    # typecheck + lint + format:check + vitest (71 tests)
+npm run build    # Next.js standalone production build
 ```
 
-CI (`.github/workflows/ci.yml`) runs five independent jobs on every push/PR:
-host quality gates (ruff/mypy/pytest from the lockfile), production image
-build + contract checks (non-root UID, no dev packages, import safety,
-offline boot asserting `/health`=200 and `/ready`=503), the test suite
+CI (`.github/workflows/ci.yml`) runs independent jobs on every push/PR:
+backend quality gates (ruff/mypy/pytest from the lockfile), frontend verification
+(npm ci, typecheck, lint, prettier check, vitest unit tests, next build), production image
+builds + contract checks (backend UID 10001, frontend UID 1000, no dev packages, import safety,
+offline boot asserting `/health`=200 and `/ready`=503), the backend test suite
 executed inside a Linux container, compose config validation, Terraform
 fmt/init/validate, and gitleaks secret scanning. Pre-commit hooks
 (`make hooks`) run the fast subset locally.
 
 ## Layout
 
-Repository structure mirrors `SENTINEL_SPEC.md` section 4: `backend/` (API +
-pipelines), `frontend/` (Next.js chat UI, Phase 5 — placeholder dirs only
-today), `infra/` (`Dockerfile.backend`, `docker-compose.yml`, and a
-resource-free Terraform skeleton in `terraform/`), `docs/`.
+Repository structure mirrors `SENTINEL_SPEC.md` section 4:
 
-Sentinel is fully standalone — no dependency on any other project. The
-optional APEX adapter (Phase 6) is disabled by default and never a hard
-dependency.
+```
+sentinel/
+├── backend/                  # FastAPI service, pipelines, adapters, agent team
+│   ├── agents/               # LangGraph agent team (fetch, extract, compare, synthesize)
+│   ├── api/                  # FastAPI routes (/query, /agents/query, /ingest, /sources, /providers, /health, /ready)
+│   ├── chains/               # Query rewriter, naive RAG chain
+│   ├── config/               # Settings, adapter registry
+│   ├── data_sources/         # SEC EDGAR and News API adapters
+│   ├── ingestion/            # Financial chunker, entity extractor, pipeline
+│   ├── llm_providers/        # Fallback engine, OpenAI & Ollama providers
+│   ├── models/               # Shared Pydantic models (RawDocument, Chunk, Citation, QueryResponse)
+│   ├── observability/        # Langfuse wrapper
+│   ├── retrieval/            # Pinecone vector store
+│   └── tests/                # 372 offline unit tests
+│
+├── frontend/                 # Next.js 16 + React 19 + Tailwind CSS v4 UI
+│   ├── app/                  # App Router (/, /sources, /health, layout)
+│   ├── components/           # ChatWindow, MessageBubble, CitationCard, AgentTraceViewer, SourceUploadPanel, StatusBar
+│   ├── lib/api.ts            # Typed client for backend API with timeout/abort/error normalization
+│   └── tests/                # 71 Vitest + Testing Library offline component tests
+│
+├── infra/
+│   ├── Dockerfile.backend    # Multi-stage Python 3.11-slim production image (non-root 10001)
+│   ├── Dockerfile.frontend   # Multi-stage Node 20-alpine Next.js standalone image (non-root node)
+│   ├── docker-compose.yml    # Standalone stack (backend + frontend) on bridge network
+│   └── terraform/            # Pinned AWS infrastructure skeleton
+│
+├── docs/                     # API.md, ARCHITECTURE.md, DEPLOYMENT.md, AGENT_DESIGN.md
+└── Makefile
+```
 
-## Known limitations (Phase 3)
+## Known limitations
 
 - Routing is deterministic heuristics (tickers/comparison words/periods), not
   an LLM classifier — unusual phrasings may ride the simple path; `/agents/query`
@@ -194,10 +230,10 @@ dependency.
   5 docs each); first question on a fresh index may answer from partial evidence
   and say so in a `Limitations:` block.
 - News coverage depends on the configured provider's history window; earnings-
-  call transcripts are still not ingestible (spec schedules them with APEX).
+  call transcripts are not yet ingestible (spec schedules them with APEX).
 - Per-agent traces nest under a service-level trace only conceptually — Langfuse
   shows them as separate traces today.
-- No authentication or rate limiting — bind localhost/private networks only.
+- No authentication or multi-user persistent session history — v1 scope is single-user demo/research.
 - Cost estimates use bundled public list prices; unknown models report no cost.
 
 Production baseline audit: `docs/PRODUCTION_AUDIT.md`.

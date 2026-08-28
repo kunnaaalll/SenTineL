@@ -3,20 +3,19 @@
 #   offline start:    cd <repo-root> && docker compose -f infra/docker-compose.yml up --build
 #   provider-enabled: cp .env.example .env, fill in credentials, same command
 #
-# Scope: backend ONLY. No APEX (Sentinel must run fully standalone), no
-# frontend service yet — the Phase 5 Next.js UI will be added as a sibling
-# service talking to this one over REST (see docs/DEPLOYMENT.md).
+# Scope: backend + frontend. No APEX (Sentinel must run fully standalone).
+# The Next.js frontend runs as a sibling service talking to the backend over
+# the internal bridge network via BACKEND_ORIGIN=http://backend:8000.
 #
-# Configuration channels (deliberate):
-#   * Everything the CONTAINER needs — credentials and non-secret tunables
-#     alike — flows ONLY through env_file (../.env) or settings.py defaults.
-#     There is no `environment:` block on purpose: Compose gives environment:
-#     precedence over env_file:, so an interpolated empty-string fallback
-#     there could silently shadow a value set in .env. Offline boot works
-#     because every tunable has a safe default in config/settings.py.
-#   * The three knobs Compose itself consumes (SENTINEL_IMAGE_TAG,
-#     SENTINEL_API_BIND, SENTINEL_API_PORT) are interpolated from the shell
-#     or infra/.env (the project directory), NOT from ../.env.
+# Configuration channels:
+#   * Backend: All credentials and tunables flow through env_file (../.env)
+#     or settings.py defaults.
+#   * Frontend: BACKEND_ORIGIN is set to the internal compose service URL
+#     (http://backend:8000). The browser only talks to the frontend origin,
+#     and the Next.js server proxies /backend/* calls to FastAPI.
+#   * Compose interpolation knobs (SENTINEL_IMAGE_TAG, SENTINEL_API_BIND,
+#     SENTINEL_API_PORT, SENTINEL_FRONTEND_BIND, SENTINEL_FRONTEND_PORT)
+#     are interpolated from the shell or infra/.env.
 #
 # Requires: Docker Compose v2.24+ (env_file.required).
 
@@ -26,8 +25,6 @@ services:
   backend:
     build:
       context: ..
-      # Default target is the final stage ("production"); the dev/test image
-      # is an explicit override only (--target test) and never runs here.
       dockerfile: infra/Dockerfile.backend
     image: sentinel-backend:${SENTINEL_IMAGE_TAG:-local}
     container_name: sentinel-backend
@@ -44,9 +41,6 @@ services:
         required: false
 
     restart: unless-stopped
-
-    # uvicorn drains up to --timeout-graceful-shutdown 20s; give the engine
-    # headroom above that so SIGKILL never preempts an in-progress drain.
     stop_grace_period: 25s
 
     # Hardening: immutable root filesystem, no privilege escalation, all
@@ -58,6 +52,37 @@ services:
       - no-new-privileges:true
     tmpfs:
       - /tmp:size=64m,mode=1777
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    networks:
+      - sentinel
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.frontend
+    image: sentinel-frontend:${SENTINEL_IMAGE_TAG:-local}
+    container_name: sentinel-frontend
+
+    ports:
+      - "${SENTINEL_FRONTEND_BIND:-127.0.0.1}:${SENTINEL_FRONTEND_PORT:-3000}:3000"
+
+    environment:
+      - BACKEND_ORIGIN=http://backend:8000
+
+    depends_on:
+      - backend
+
+    restart: unless-stopped
+    stop_grace_period: 15s
+
+    security_opt:
+      - no-new-privileges:true
 
     logging:
       driver: json-file

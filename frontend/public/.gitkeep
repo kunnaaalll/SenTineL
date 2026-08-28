@@ -1,0 +1,3 @@
+# Intentionally empty — the app ships its icon via app/icon.svg and no other
+# static assets yet. The directory exists because infra/Dockerfile.frontend
+# copies public/ into the standalone runtime unconditionally.
