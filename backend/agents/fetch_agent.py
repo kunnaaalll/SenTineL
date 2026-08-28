@@ -24,7 +24,7 @@ import re
 from dataclasses import dataclass, field
 
 from config.settings import Settings, get_settings
-from ingestion.entity_extractor import BUILTIN_TICKERS
+from ingestion.entity_extractor import BUILTIN_TICKERS, COMPANY_ALIASES
 from models.schemas import RetrievedChunk
 from observability.langfuse_wrapper import NULL_TRACER, Tracer
 from retrieval.base import VectorStore
@@ -64,6 +64,11 @@ class QueryPlanner:
 
     def detect_tickers(self, text: str) -> list[str]:
         found: list[str] = [m.group(1).upper() for m in _CASHTAG_RE.finditer(text)]
+        lower_text = text.lower()
+        for company_name, ticker in COMPANY_ALIASES.items():
+            if re.search(rf"\b{re.escape(company_name)}\b", lower_text):
+                found.append(ticker)
+
         alternation = "|".join(
             re.escape(t) for t in sorted(self.known_tickers, key=len, reverse=True) if t.isalpha()
         )

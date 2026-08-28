@@ -190,8 +190,14 @@ class FakeVectorStore(VectorStore):
 
 
 def _matches(filters: dict, meta: dict) -> bool:
-    if filters.get("ticker") and meta.get("ticker") != filters["ticker"]:
-        return False
+    if filters.get("ticker"):
+        meta_ticker = meta.get("ticker")
+        if not meta_ticker and str(meta.get("source_id", "")).startswith("SEC:"):
+            parts = str(meta.get("source_id", "")).split(":")
+            if len(parts) >= 2:
+                meta_ticker = parts[1]
+        if meta_ticker != filters["ticker"] and filters["ticker"] not in meta.get("entities", []):
+            return False
     if filters.get("source_type") and meta.get("source_type") != filters["source_type"]:
         return False
     date_range = filters.get("date_range")

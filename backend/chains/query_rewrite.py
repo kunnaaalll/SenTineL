@@ -124,9 +124,15 @@ class QueryRewriter:
         )
 
     def _detect_tickers(self, text: str) -> list[str]:
+        from ingestion.entity_extractor import COMPANY_ALIASES
+
         found: list[str] = []
         for match in _DOLLAR_TICKER_RE.finditer(text):
             found.append(match.group(1).upper())
+        lower_text = text.lower()
+        for company_name, ticker in COMPANY_ALIASES.items():
+            if re.search(rf"\b{re.escape(company_name)}\b", lower_text):
+                found.append(ticker)
         for match in _TOKEN_RE.finditer(text):
             token = match.group(1).rstrip(".&-/")
             if token in self.known_tickers:

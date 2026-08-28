@@ -76,6 +76,12 @@ def build_pinecone_filter(filters: dict | None) -> dict | None:
 
 
 def to_metadata(chunk: Chunk) -> dict:
+    ticker = chunk.metadata.get("ticker")
+    if not ticker and chunk.source_id.startswith("SEC:"):
+        parts = chunk.source_id.split(":")
+        if len(parts) >= 2 and parts[1]:
+            ticker = parts[1]
+
     metadata = {
         "text": chunk.text,
         "source_id": chunk.source_id,
@@ -85,7 +91,7 @@ def to_metadata(chunk: Chunk) -> dict:
         "entities": list(chunk.entities),
         "footnotes": list(chunk.footnotes),
         "title": chunk.metadata.get("title"),
-        "ticker": chunk.metadata.get("ticker"),
+        "ticker": ticker,
         "cik": chunk.metadata.get("cik"),
         "accession_number": chunk.metadata.get("accession_number"),
         "url": chunk.metadata.get("url"),

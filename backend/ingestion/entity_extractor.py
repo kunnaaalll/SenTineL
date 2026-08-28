@@ -121,6 +121,39 @@ BUILTIN_TICKERS: frozenset[str] = frozenset(
     }
 )
 
+COMPANY_ALIASES: dict[str, str] = {
+    "apple": "AAPL",
+    "microsoft": "MSFT",
+    "nvidia": "NVDA",
+    "google": "GOOGL",
+    "alphabet": "GOOGL",
+    "amazon": "AMZN",
+    "meta": "META",
+    "facebook": "META",
+    "tesla": "TSLA",
+    "netflix": "NFLX",
+    "intel": "INTC",
+    "amd": "AMD",
+    "qualcomm": "QCOM",
+    "oracle": "ORCL",
+    "salesforce": "CRM",
+    "broadcom": "AVGO",
+    "berkshire": "BRK.A",
+    "jpmorgan": "JPM",
+    "jp morgan": "JPM",
+    "visa": "V",
+    "mastercard": "MA",
+    "walmart": "WMT",
+    "disney": "DIS",
+    "cisco": "CSCO",
+    "boeing": "BA",
+    "nike": "NKE",
+    "coca cola": "KO",
+    "coca-cola": "KO",
+    "pepsi": "PEP",
+    "pepsico": "PEP",
+}
+
 
 @dataclass
 class ExtractedEntities:
