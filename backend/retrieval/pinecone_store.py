@@ -264,22 +264,34 @@ class PineconeVectorStore(VectorStore):
 
     def delete_source(self, source_id: str) -> None:
         """Drop every vector of `source_id` (delete-before-reingest policy)."""
-        self.index.delete(
-            delete_all=True,
-            namespace=self.namespace,
-            filter={"source_id": {"$eq": source_id}},
-        )
+        try:
+            self.index.delete(
+                namespace=self.namespace,
+                filter={"source_id": {"$eq": source_id}},
+            )
+        except Exception as exc:
+            # On a fresh index/namespace with 0 records, Pinecone returns 404 Namespace not found.
+            # That is completely expected before the first upsert.
+            if "not found" in str(exc).lower() or "404" in str(exc):
+                return
+            raise
 
     def search(
         self, query_vector: list[float], top_k: int = 5, filters: dict | None = None
     ) -> list[RetrievedChunk]:
-        response = self.index.query(
-            vector=query_vector,
-            top_k=top_k,
-            namespace=self.namespace,
-            filter=build_pinecone_filter(filters),
-            include_metadata=True,
-        )
+        try:
+            response = self.index.query(
+                vector=query_vector,
+                top_k=top_k,
+                namespace=self.namespace,
+                filter=build_pinecone_filter(filters),
+                include_metadata=True,
+            )
+        except Exception as exc:
+            if "not found" in str(exc).lower() or "404" in str(exc):
+                return []
+            raise
+
         matches = (
             response.get("matches", [])
             if isinstance(response, dict)
