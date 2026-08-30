@@ -165,12 +165,15 @@ class RagChain:
 
         _footer_re = re.compile(r"Form\s+10-[KQ]\s*\|\s*\d+", re.IGNORECASE)
         _toc_re = re.compile(r"\|\s*Item\s+\d+.*\|\s*\d+\s*\|", re.IGNORECASE)
+        _lead_in_re = re.compile(r"(?:were|was|as)\s+follows\s*(?:\([^)]*\))?\s*:\s*$", re.IGNORECASE)
 
         def _is_unhelpful(chunk: RetrievedChunk) -> bool:
             t = chunk.text.strip()
             if _footer_re.search(t) and len(t) < 120:
                 return True
             if _toc_re.search(t) and len(t) < 600:
+                return True
+            if _lead_in_re.search(t) and "|" not in t and len(t) < 350:
                 return True
             return False
 
