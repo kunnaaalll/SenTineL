@@ -26,6 +26,8 @@ const nextConfig = {
     const backendOrigin =
       process.env.BACKEND_ORIGIN && process.env.BACKEND_ORIGIN.trim().length > 0
         ? process.env.BACKEND_ORIGIN.trim().replace(/\/+$/, "")
+        : process.env.VERCEL
+        ? "https://sentinel-backend-4zig.onrender.com"
         : "http://127.0.0.1:8000";
     return [
       {

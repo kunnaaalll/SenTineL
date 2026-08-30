@@ -18,14 +18,20 @@
 // Configuration
 // ---------------------------------------------------------------------------
 
-const RAW_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+export function getApiBaseUrl(): string {
+  const raw = process.env.NEXT_PUBLIC_API_BASE_URL?.trim().replace(/\/+$/, "");
+  if (raw) return raw;
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host.includes("vercel.app") || host.includes("sentinel")) {
+      return "https://sentinel-backend-4zig.onrender.com";
+    }
+  }
+  return "";
+}
 
-/** Base URL every request is joined onto; never has a trailing slash. */
-export const API_BASE_URL: string =
-  RAW_BASE.trim().replace(/\/+$/, "") ||
-  (typeof window !== "undefined" && window.location.hostname.includes("vercel.app")
-    ? "https://sentinel-backend-4zig.onrender.com"
-    : "");
+/** Base URL fallback for backwards compatibility */
+export const API_BASE_URL: string = getApiBaseUrl();
 
 /** Agent-team queries can legitimately take a while; keep generous bounds. */
 export const QUERY_TIMEOUT_MS = 90_000;
@@ -265,7 +271,8 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   try {
     let response: Response;
     try {
-      response = await fetch(`${API_BASE_URL}${path}`, {
+      const baseUrl = getApiBaseUrl();
+      response = await fetch(`${baseUrl}${path}`, {
         method,
         headers: body !== undefined ? { "content-type": "application/json" } : undefined,
         body: body !== undefined ? JSON.stringify(body) : undefined,

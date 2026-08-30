@@ -173,6 +173,11 @@ class QueryRewriter:
                             )
                         ):
                             cleaned = f"{tickers[0]} {cleaned}"
+                        # Inherit fiscal year context if missing in current follow-up query
+                        prev_years = re.findall(r"\b(19\d\d|20\d\d)\b", content)
+                        cur_years = re.findall(r"\b(19\d\d|20\d\d)\b", cleaned)
+                        if prev_years and not cur_years:
+                            cleaned = f"{cleaned} fiscal {prev_years[-1]}"
                         break
 
         # Section context expansion to align with indexed financial document sections

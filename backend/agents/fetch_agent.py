@@ -148,6 +148,11 @@ class QueryPlanner:
                             )
                         ):
                             cleaned = f"{tickers[0]} {cleaned}"
+                        # Inherit fiscal year context if missing in current follow-up query
+                        prev_years = _YEAR_RE.findall(content)
+                        cur_years = _YEAR_RE.findall(cleaned)
+                        if prev_years and not cur_years:
+                            cleaned = f"{cleaned} fiscal {prev_years[-1]}"
                         break
 
         # Section context expansion to align with indexed financial document sections
