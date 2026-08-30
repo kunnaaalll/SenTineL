@@ -244,7 +244,8 @@ class RagChain:
                     "Previous conversation context:\n" + "\n".join(recent_turns) + "\n\n"
                 )
 
-        prompt = f"{history_context}Question: {rewritten}\n\nExcerpts:\n{context}\n\nAnswer:"
+        q_display = f"{question} ({rewritten})" if history and rewritten != question else question
+        prompt = f"{history_context}Question: {q_display}\n\nExcerpts:\n{context}\n\nAnswer:"
         try:
             with trace.span("generate", provider=self._generation_provider()):
                 response: GenerationResult = self.engine.generate(
