@@ -315,13 +315,16 @@ class FetchAgent:
             )
             _footer_re = re.compile(r"Form\s+10-[KQ]\s*\|\s*\d+", re.IGNORECASE)
             _toc_re = re.compile(r"\|\s*Item\s+\d+.*\|\s*\d+\s*\|", re.IGNORECASE)
-            _lead_in_re = re.compile(r"(?:were|was|as)\s+follows\s*(?:\([^)]*\))?\s*:\s*$", re.IGNORECASE)
+            _preamble_re = re.compile(
+                r"(?:the\s+following\s+table\s+shows|were\s+as\s+follows|was\s+as\s+follows|as\s+follows\b)",
+                re.IGNORECASE,
+            )
             substantive = [
                 c
                 for c in raw
                 if not (_footer_re.search(c.text) and len(c.text.strip()) < 120)
                 and not (_toc_re.search(c.text) and len(c.text.strip()) < 600)
-                and not (_lead_in_re.search(c.text.strip()) and "|" not in c.text and len(c.text.strip()) < 350)
+                and not (_preamble_re.search(c.text.strip()) and "|" not in c.text and len(c.text.strip()) < 350)
             ]
             return (substantive if substantive else raw)[: self.top_k_per_search]
         except Exception as exc:  # noqa: BLE001 — a broken store must not kill the node
