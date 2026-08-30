@@ -148,39 +148,47 @@ class QueryRewriter:
                 cleaned = last_q
                 tickers = self._detect_tickers(cleaned)
             elif not tickers:
+                inherited_ticker = None
+                inherited_year = None
                 for turn in reversed(history):
                     content = (
                         turn.get("content", "")
                         if isinstance(turn, dict)
                         else getattr(turn, "content", "")
                     )
-                    prev_tickers = self._detect_tickers(content)
-                    if prev_tickers:
-                        tickers = prev_tickers
-                        words = cleaned_lower.split()
-                        if len(words) <= 6 or any(
-                            w in words
-                            for w in (
-                                "it",
-                                "its",
-                                "their",
-                                "that",
-                                "this",
-                                "do",
-                                "how",
-                                "what",
-                                "and",
-                                "why",
-                                "more",
-                            )
-                        ):
-                            cleaned = f"{tickers[0]} {cleaned}"
-                        # Inherit fiscal year context if missing in current follow-up query
-                        prev_years = re.findall(r"\b(19\d\d|20\d\d)\b", content)
-                        cur_years = re.findall(r"\b(19\d\d|20\d\d)\b", cleaned)
-                        if prev_years and not cur_years:
-                            cleaned = f"{cleaned} fiscal {prev_years[-1]}"
+                    if not inherited_ticker:
+                        t_found = self._detect_tickers(content)
+                        if t_found:
+                            inherited_ticker = t_found[0]
+                    if not inherited_year:
+                        y_found = re.findall(r"\b(19\d\d|20\d\d)\b", content)
+                        if y_found:
+                            inherited_year = y_found[-1]
+                    if inherited_ticker and inherited_year:
                         break
+
+                if inherited_ticker:
+                    tickers = [inherited_ticker]
+                    words = cleaned_lower.split()
+                    if len(words) <= 6 or any(
+                        w in words
+                        for w in (
+                            "it",
+                            "its",
+                            "their",
+                            "that",
+                            "this",
+                            "do",
+                            "how",
+                            "what",
+                            "and",
+                            "why",
+                            "more",
+                        )
+                    ):
+                        cleaned = f"{inherited_ticker} {cleaned}"
+                if inherited_year and not re.findall(r"\b(19\d\d|20\d\d)\b", cleaned):
+                    cleaned = f"{cleaned} fiscal {inherited_year}"
 
         # Normalize cashtags to canonical uppercase so embeddings see one form.
         rewritten = _DOLLAR_TICKER_RE.sub(lambda m: f"${m.group(1).upper()}", cleaned)
@@ -206,7 +214,7 @@ class QueryRewriter:
             found.append(match.group(1).upper())
         lower_text = text.lower()
         for company_name, ticker in COMPANY_ALIASES.items():
-            if re.search(rf"\b{re.escape(company_name)}\b", lower_text):
+            if re.search(rf"\b{re.escape(company_name)}(?:['’]s|s)?\b", lower_text):
                 found.append(ticker)
         for match in _TOKEN_RE.finditer(text):
             token = match.group(1).rstrip(".&-/")
