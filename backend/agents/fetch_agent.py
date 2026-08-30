@@ -267,16 +267,32 @@ class FetchAgent:
                 unavailable.append(f"{adapter_name}: {reason}")
                 continue
             for ticker in plan.tickers[:2]:  # cap live work per source type
-                ticker_has_chunks = any(
-                    c.source_type == source_type
-                    and (
-                        getattr(c, "ticker", None) == ticker
-                        or c.metadata.get("ticker") == ticker
-                        or (c.source_id and f":{ticker}:" in c.source_id)
-                        or (ticker in c.entities)
+                if source_type == "sec_filing":
+                    ticker_has_chunks = any(
+                        c.source_type == source_type
+                        and (
+                            ":10-K:" in (c.source_id or "")
+                            or ":10-Q:" in (c.source_id or "")
+                            or c.metadata.get("form") in ("10-K", "10-Q")
+                        )
+                        and (
+                            getattr(c, "ticker", None) == ticker
+                            or c.metadata.get("ticker") == ticker
+                            or (c.source_id and f":{ticker}:" in c.source_id)
+                        )
+                        for c in retrieved.values()
                     )
-                    for c in retrieved.values()
-                )
+                else:
+                    ticker_has_chunks = any(
+                        c.source_type == source_type
+                        and (
+                            getattr(c, "ticker", None) == ticker
+                            or c.metadata.get("ticker") == ticker
+                            or (c.source_id and f":{ticker}:" in c.source_id)
+                            or (ticker in c.entities)
+                        )
+                        for c in retrieved.values()
+                    )
                 if ticker_has_chunks:
                     continue
                 key = f"{ticker}:{source_type}"
