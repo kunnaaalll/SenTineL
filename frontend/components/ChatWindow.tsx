@@ -17,14 +17,37 @@ import {
 } from "@/lib/persistence";
 import { useBackendStatus } from "@/components/BackendGate";
 import { MessageBubble, type ChatMessage } from "./MessageBubble";
+import { SentinelLogo } from "./SentinelLogo";
 
 const MAX_QUESTION_LENGTH = 4000;
 
-const EXAMPLE_QUESTIONS = [
-  "What was Apple's total net sales in fiscal 2024?",
-  "Compare Microsoft and Google cloud revenue growth year over year.",
-  "Summarize Tesla's main risk factors from its latest 10-K.",
-  "What has been reported recently about NVIDIA's data center demand?",
+interface ExampleCategory {
+  title: string;
+  tag: string;
+  question: string;
+}
+
+const EXAMPLE_QUESTIONS: ExampleCategory[] = [
+  {
+    title: "Fiscal Net Sales",
+    tag: "SEC 10-K",
+    question: "What was Apple's total net sales in fiscal 2024?",
+  },
+  {
+    title: "Multi-Entity Comparison",
+    tag: "Comparative",
+    question: "Compare Microsoft and Google cloud revenue growth year over year.",
+  },
+  {
+    title: "Risk Factor Summary",
+    tag: "Item 1A",
+    question: "Summarize Tesla's main risk factors from its latest 10-K.",
+  },
+  {
+    title: "Market Demand Sentiment",
+    tag: "Market News",
+    question: "What has been reported recently about NVIDIA's data center demand?",
+  },
 ];
 
 let nextMessageId = 0;
@@ -34,13 +57,15 @@ function newId(): string {
 }
 
 /**
- * The main research interface: question input, transcript, and per-answer
- * evidence. Conversations are persisted to localStorage under sentinel.chat.v1
- * and restored after browser refresh. History is kept in-memory when storage
- * is unavailable, so the chat remains fully functional either way.
+ * ChatWindow — Sentinel's Primary Financial Research Interface.
  *
- * Privacy: only completed messages are stored — never in-flight state, API
- * keys, auth headers, Langfuse secret keys, or raw backend error bodies.
+ * Features:
+ * - Independent scrollable transcript with generous bottom clearance.
+ * - Fixed/sticky floating composer anchored at the bottom with safe-area insets.
+ * - Hydration-safe browser persistence under `sentinel.chat.v1`.
+ * - In-memory fallback if storage is unavailable.
+ * - Keyboard shortcuts: Enter to submit, Shift+Enter for newline, Escape to cancel.
+ * - Accessible live regions and clear-conversation modal.
  */
 export function ChatWindow() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -48,9 +73,7 @@ export function ChatWindow() {
   const [loading, setLoading] = useState(false);
   const [forceAgents, setForceAgents] = useState(false);
   const [announcement, setAnnouncement] = useState("");
-  // Persistence UI state
   const [storageAvailable, setStorageAvailable] = useState(false);
-  // Clear conversation confirmation UX
   const [confirmClear, setConfirmClear] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
@@ -80,7 +103,6 @@ export function ChatWindow() {
     if (available) {
       const saved = loadPersistedMessages();
       if (saved.length > 0) {
-        // Convert persisted messages back to ChatMessage format
         const restored: ChatMessage[] = saved.map((m) => ({
           id: m.id,
           role: m.role,
@@ -112,10 +134,12 @@ export function ChatWindow() {
   }, [messages, storageAvailable]);
 
   // ---------------------------------------------------------------------------
-  // Scroll to bottom
+  // Auto-scroll on new messages
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "end" });
+    if (messages.length > 0) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
   }, [messages]);
 
   // ---------------------------------------------------------------------------
@@ -167,7 +191,6 @@ export function ChatWindow() {
           forcedAgents: forceAgents,
         },
       ];
-      // Trim if over max (keep newest)
       return next.length > MAX_MESSAGES ? next.slice(-MAX_MESSAGES) : next;
     });
     setLoading(true);
@@ -254,199 +277,202 @@ export function ChatWindow() {
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="relative flex flex-1 flex-col justify-between">
       {/* Screen-reader live region */}
       <div aria-live="polite" role="status" className="sr-only">
         {announcement}
       </div>
 
-      {/* Session degradation banner (backend alive but not configured) */}
+      {/* Session degradation banner (backend alive but unconfigured) */}
       {isBackendDegraded && (
         <div
           role="status"
-          className="rounded-lg border border-warning/30 bg-warning-soft px-4 py-3 text-sm text-warning-ink"
+          className="mb-4 rounded-xl border border-warning/30 bg-warning-soft px-4 py-3 text-sm text-warning-ink"
         >
           <p className="m-0 font-medium">
-            Research engine is not fully configured.{" "}
-            <span className="font-normal opacity-80">
-              Answers may be limited until provider credentials are set on the backend.
+            Research engine running in unconfigured mode.{" "}
+            <span className="font-normal opacity-85">
+              Live retrieval and answers may be unavailable until credentials are provided.
             </span>
           </p>
         </div>
       )}
 
-      {/* Getting-started panel or conversation */}
-      {!hasMessages ? (
-        <section
-          aria-label="Getting started"
-          className="rounded-2xl border border-line bg-surface px-5 py-10 text-center shadow-card sm:px-10 sm:py-14"
-        >
-          {/* Mini orb icon */}
-          <div
-            aria-hidden
-            className="mx-auto mb-5 h-10 w-10 rounded-full"
-            style={{
-              background:
-                "radial-gradient(ellipse at 35% 35%, rgba(221,184,64,0.7) 0%, rgba(200,160,48,0.3) 60%, transparent 100%)",
-              boxShadow: "0 0 20px rgba(200,160,48,0.2)",
-            }}
-          />
-          <h2 className="font-display mt-0 mb-2 text-xl font-semibold tracking-tight text-ink">
-            Ask a research question
-          </h2>
-          <p className="mx-auto mb-7 max-w-md text-sm leading-relaxed text-ink-soft">
-            Sentinel retrieves SEC filings and market news, extracts the facts, and answers with
-            numbered citations you can expand and verify.
-          </p>
-          <ul className="mx-auto m-0 grid list-none gap-2.5 p-0 text-left sm:max-w-lg sm:grid-cols-2">
-            {EXAMPLE_QUESTIONS.map((example) => (
-              <li key={example}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInput(example);
-                    inputRef.current?.focus();
-                  }}
-                  className="transition-enabled h-full w-full rounded-xl border border-line bg-surface-muted px-4 py-3.5 text-left text-sm leading-snug text-ink-soft hover:border-accent/50 hover:bg-accent-soft hover:text-ink"
-                  style={{ boxShadow: "none" }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.boxShadow =
-                      "0 0 16px rgba(200,160,48,0.08)";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.boxShadow = "none";
-                  }}
-                >
-                  {example}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : (
-        <section aria-label="Conversation" className="flex flex-col gap-4">
-          {messages.map((message) => (
-            <MessageBubble key={message.id} message={message} />
-          ))}
-          <div ref={bottomRef} />
-        </section>
-      )}
-
-      {/* Input form */}
-      <form onSubmit={submit} className="sticky bottom-4 space-y-2">
-        <div className="rounded-2xl border border-line bg-surface p-2.5 shadow-card">
-          <label
-            htmlFor="question-input"
-            className="mb-1.5 block px-1 text-xs font-medium text-ink-faint"
+      {/* Main message stream container with bottom clearance so sticky composer never covers content */}
+      <div className="flex-1 pb-44 sm:pb-48">
+        {!hasMessages ? (
+          <section
+            aria-label="Getting started"
+            className="rounded-2xl border border-line bg-surface px-6 py-10 text-center shadow-card sm:px-12 sm:py-14"
           >
-            Your question
-          </label>
-          <textarea
-            id="question-input"
-            ref={inputRef}
-            value={input}
-            onChange={(event) => setInput(event.target.value.slice(0, MAX_QUESTION_LENGTH))}
-            onKeyDown={onKeyDown}
-            rows={2}
-            maxLength={MAX_QUESTION_LENGTH}
-            placeholder='e.g. "Compare Apple and Microsoft gross margin for fiscal 2024"'
-            aria-describedby="question-hint"
-            className="block w-full resize-y rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-sm leading-relaxed text-ink placeholder:text-ink-faint focus:border-line focus:outline-none"
-          />
-          <div className="flex flex-wrap items-center justify-between gap-2 px-1 pb-0.5 pt-1">
-            <div className="flex items-center gap-3 flex-wrap">
-              <label className="flex cursor-pointer items-center gap-1.5 text-xs text-ink-faint transition-enabled hover:text-ink-soft">
-                <input
-                  type="checkbox"
-                  checked={forceAgents}
-                  onChange={(event) => setForceAgents(event.target.checked)}
-                  className="h-3.5 w-3.5 accent-[var(--accent)]"
-                />
-                Force multi-agent analysis
-              </label>
-              <span id="question-hint" className="hidden text-xs text-ink-faint sm:inline">
-                Enter to send · Shift+Enter for a new line{loading ? " · Escape cancels" : ""}
-              </span>
+            {/* Sentinel brand mark */}
+            <div className="mx-auto mb-5 flex justify-center">
+              <div className="rounded-full bg-accent-soft p-3.5 border border-accent/20">
+                <SentinelLogo variant="symbol" size={32} />
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              {remaining < 500 && (
-                <span aria-hidden className="font-mono text-xs text-ink-faint">
-                  {remaining}
+
+            <h2 className="font-display mt-0 mb-2 text-2xl font-bold tracking-tight text-ink sm:text-3xl">
+              Ask a research question
+            </h2>
+            <p className="mx-auto mb-8 max-w-lg text-sm leading-relaxed text-ink-soft">
+              Query public SEC filings, earnings transcripts, and market news. Sentinel extracts
+              verified facts and synthesizes cited answers with traceable agent reasoning.
+            </p>
+
+            {/* Categorized example questions */}
+            <ul className="mx-auto m-0 grid list-none gap-3 p-0 text-left sm:max-w-2xl sm:grid-cols-2">
+              {EXAMPLE_QUESTIONS.map((example) => (
+                <li key={example.question}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInput(example.question);
+                      inputRef.current?.focus();
+                    }}
+                    className="transition-enabled group flex h-full w-full flex-col justify-between rounded-xl border border-line bg-surface-muted p-4 text-left hover:border-accent/50 hover:bg-accent-soft focus-visible:ring-2 focus-visible:ring-accent"
+                  >
+                    <span className="mb-2 inline-flex self-start rounded-full bg-surface px-2 py-0.5 font-mono text-[10px] font-medium tracking-wide uppercase text-accent border border-line">
+                      {example.tag}
+                    </span>
+                    <span className="text-sm font-medium leading-snug text-ink transition-enabled group-hover:text-accent-strong">
+                      {example.question}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : (
+          <section aria-label="Conversation" className="flex flex-col gap-5">
+            {messages.map((message) => (
+              <MessageBubble key={message.id} message={message} />
+            ))}
+            <div ref={bottomRef} className="h-4" />
+          </section>
+        )}
+      </div>
+
+      {/* Fixed / Sticky Question Composer */}
+      <div className="sticky bottom-0 z-30 w-full pt-2 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] bg-gradient-to-t from-background via-background/95 to-transparent">
+        <form onSubmit={submit} className="space-y-2">
+          <div className="rounded-2xl border border-line bg-surface/95 backdrop-blur-md p-3 shadow-float transition-enabled focus-within:border-accent/60 focus-within:shadow-glow">
+            <label
+              htmlFor="question-input"
+              className="mb-1.5 block px-1 text-xs font-semibold uppercase tracking-wider text-ink-faint"
+            >
+              Your question
+            </label>
+            <textarea
+              id="question-input"
+              ref={inputRef}
+              value={input}
+              onChange={(event) => setInput(event.target.value.slice(0, MAX_QUESTION_LENGTH))}
+              onKeyDown={onKeyDown}
+              rows={2}
+              maxLength={MAX_QUESTION_LENGTH}
+              placeholder='e.g. "Compare Apple and Microsoft gross margin for fiscal 2024"'
+              aria-describedby="question-hint"
+              className="block w-full resize-y rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-sm leading-relaxed text-ink placeholder:text-ink-faint focus:border-line focus:outline-none"
+            />
+
+            <div className="flex flex-wrap items-center justify-between gap-2 px-1 pb-0.5 pt-1.5">
+              <div className="flex items-center gap-3 flex-wrap">
+                <label className="flex cursor-pointer items-center gap-1.5 text-xs text-ink-soft transition-enabled hover:text-ink">
+                  <input
+                    type="checkbox"
+                    checked={forceAgents}
+                    onChange={(event) => setForceAgents(event.target.checked)}
+                    className="h-3.5 w-3.5 rounded border-line text-accent accent-[var(--accent)] focus:ring-accent"
+                  />
+                  <span>Force multi-agent analysis</span>
+                </label>
+                <span id="question-hint" className="hidden text-xs text-ink-faint sm:inline">
+                  Enter to send · Shift+Enter for a new line{loading ? " · Escape cancels" : ""}
                 </span>
-              )}
-              {loading ? (
-                <button
-                  type="button"
-                  onClick={cancelInFlight}
-                  className="transition-enabled rounded-lg border border-line-strong bg-surface px-4 py-2 text-sm font-medium text-ink-soft hover:border-danger hover:text-danger"
+              </div>
+
+              <div className="flex items-center gap-2">
+                {remaining < 500 && (
+                  <span aria-hidden className="font-mono text-xs text-ink-faint">
+                    {remaining}
+                  </span>
+                )}
+                {loading ? (
+                  <button
+                    type="button"
+                    onClick={cancelInFlight}
+                    className="transition-enabled rounded-lg border border-danger/30 bg-danger-soft px-4 py-2 text-sm font-medium text-danger hover:bg-danger hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    disabled={!canSubmit}
+                    className="transition-enabled rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-on-accent enabled:hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-40 shadow-sm"
+                  >
+                    Ask Sentinel
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Persistence status and Clear action row */}
+          {hasMessages && (
+            <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs">
+              {storageAvailable && hasSavedMessages ? (
+                <p
+                  className="m-0 flex items-center gap-1.5 text-[11px] text-ink-faint"
+                  aria-live="polite"
                 >
-                  Cancel
-                </button>
+                  <span className="h-1.5 w-1.5 rounded-full bg-accent opacity-75" aria-hidden />
+                  <span className="sr-only">Status:</span>
+                  Saved on this device
+                </p>
+              ) : (
+                <span />
+              )}
+
+              {confirmClear ? (
+                <span className="flex items-center gap-2">
+                  <span className="text-ink-soft">Clear conversation?</span>
+                  <button
+                    type="button"
+                    onClick={handleClearConfirm}
+                    className="transition-enabled rounded border border-danger/40 bg-danger-soft px-2.5 py-0.5 text-xs font-semibold text-danger hover:bg-danger hover:text-white"
+                    aria-label="Confirm clear conversation"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClearCancel}
+                    className="transition-enabled rounded border border-line bg-surface px-2.5 py-0.5 text-xs font-medium text-ink-soft hover:text-ink"
+                    aria-label="Cancel clear conversation"
+                  >
+                    Cancel
+                  </button>
+                </span>
               ) : (
                 <button
-                  type="submit"
-                  disabled={!canSubmit}
-                  className="transition-enabled rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-on-accent enabled:hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-50"
-                  style={canSubmit ? { boxShadow: "0 0 12px rgba(200,160,48,0.25)" } : undefined}
+                  type="button"
+                  onClick={handleClearRequest}
+                  className="transition-enabled text-[11px] text-ink-faint hover:text-ink-soft hover:underline"
+                  aria-label="Clear conversation history"
                 >
-                  Ask Sentinel
+                  Clear conversation
                 </button>
               )}
             </div>
-          </div>
-        </div>
+          )}
 
-        {/* Bottom row: persistence indicator + clear conversation */}
-        {hasMessages && (
-          <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-            {/* Saved indicator */}
-            {storageAvailable && hasSavedMessages ? (
-              <p className="m-0 text-[11px] text-ink-faint" aria-live="polite">
-                <span aria-hidden>◆</span> <span className="sr-only">Status:</span>
-                Saved on this device
-              </p>
-            ) : (
-              <span />
-            )}
-
-            {/* Clear conversation */}
-            {confirmClear ? (
-              <span className="flex items-center gap-2 text-xs">
-                <span className="text-ink-soft">Clear conversation?</span>
-                <button
-                  type="button"
-                  onClick={handleClearConfirm}
-                  className="transition-enabled rounded border border-danger/40 bg-danger-soft px-2.5 py-1 font-medium text-danger hover:border-danger"
-                  aria-label="Confirm clear conversation"
-                >
-                  Clear
-                </button>
-                <button
-                  type="button"
-                  onClick={handleClearCancel}
-                  className="transition-enabled rounded border border-line px-2.5 py-1 font-medium text-ink-soft hover:text-ink"
-                  aria-label="Cancel clear conversation"
-                >
-                  Cancel
-                </button>
-              </span>
-            ) : (
-              <button
-                type="button"
-                onClick={handleClearRequest}
-                className="transition-enabled text-[11px] text-ink-faint hover:text-ink-soft"
-                aria-label="Clear conversation history"
-              >
-                Clear conversation
-              </button>
-            )}
-          </div>
-        )}
-
-        <p aria-hidden className="px-2 text-center text-[11px] text-ink-faint">
-          Answers cite retrieved filings and news only — always verify against the linked sources.
-        </p>
-      </form>
+          <p aria-hidden className="px-2 text-center text-[11px] text-ink-faint">
+            Answers cite retrieved filings and news only — always verify against the linked sources.
+          </p>
+        </form>
+      </div>
     </div>
   );
 }

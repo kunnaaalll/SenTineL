@@ -2,6 +2,7 @@
 
 import { createContext, useContext, type ReactNode } from "react";
 import { useReadiness, type ReadinessStatus } from "@/lib/readiness";
+import { SentinelLogo } from "./SentinelLogo";
 
 // ---------------------------------------------------------------------------
 // Context — child components can read the current backend status
@@ -93,9 +94,9 @@ function DegradedBanner() {
       <div className="mx-auto flex max-w-5xl items-center gap-2">
         <SignalIcon className="h-4 w-4 shrink-0 text-warning" aria-hidden />
         <p className="m-0 font-medium">
-          Research engine is running but not fully configured.{" "}
-          <span className="font-normal opacity-80">
-            Questions may not be answerable until provider credentials are set on the backend.
+          Research engine is running in unconfigured mode.{" "}
+          <span className="font-normal opacity-85">
+            Answers may be limited until provider credentials are set on the backend.
           </span>
         </p>
       </div>
@@ -133,39 +134,31 @@ function WakeScreen({ status, elapsedSeconds, progress, detail, onRetry }: WakeS
             : "Unable to connect to the research engine."}
       </div>
 
-      {/* Background constellation motif */}
+      {/* Decorative coordinate / aperture background */}
       <ConstellationBackground />
 
       {/* Centered card */}
       <div className="relative z-10 flex w-full max-w-md flex-col items-center px-6 py-10 text-center animate-fade-up">
-        {/* Orb */}
-        <div className="relative mb-8">
+        {/* Animated Brand Aperture Node */}
+        <div className="relative mb-6">
           <div
             aria-hidden
-            className="animate-orb-breathe h-24 w-24 rounded-full"
+            className="animate-orb-breathe flex h-20 w-20 items-center justify-center rounded-full bg-accent-soft border border-accent/30"
             style={{
-              background:
-                "radial-gradient(ellipse at 35% 30%, rgba(221 184 64 / 0.9) 0%, rgba(200 160 48 / 0.6) 40%, rgba(30 48 88 / 0.3) 100%)",
-              boxShadow: "0 0 48px rgba(200 160 48 / 0.35), 0 0 96px rgba(200 160 48 / 0.12)",
+              boxShadow: "0 0 36px rgba(194, 94, 62, 0.2), 0 0 72px rgba(194, 94, 62, 0.08)",
             }}
-          />
-          {/* Inner orb ring */}
-          <div
-            aria-hidden
-            className="absolute inset-0 m-auto h-10 w-10 rounded-full border border-accent/40"
-            style={{ top: "50%", left: "50%", transform: "translate(-50%, -50%)" }}
-          />
+          >
+            <SentinelLogo variant="symbol" size={36} />
+          </div>
         </div>
 
-        {/* Wordmark */}
-        <p className="mb-1 text-xs font-semibold uppercase tracking-[0.25em] text-accent opacity-80">
-          Sentinel
-        </p>
+        {/* Sentinel Brand Title */}
+        <p className="mb-1 text-xs font-bold uppercase tracking-[0.2em] text-accent">SENTINEL</p>
 
         {/* Primary headline */}
         {isWaking ? (
           <>
-            <h1 className="font-display mb-3 text-2xl font-semibold tracking-tight text-ink">
+            <h1 className="font-display mb-3 text-2xl font-bold tracking-tight text-ink sm:text-3xl">
               Namaste, welcome to Sentinel.
             </h1>
             <p className="mb-8 max-w-xs text-sm leading-relaxed text-ink-soft">
@@ -174,20 +167,20 @@ function WakeScreen({ status, elapsedSeconds, progress, detail, onRetry }: WakeS
           </>
         ) : isTimeout ? (
           <>
-            <h1 className="font-display mb-3 text-2xl font-semibold tracking-tight text-ink">
+            <h1 className="font-display mb-3 text-2xl font-bold tracking-tight text-ink sm:text-3xl">
               Sentinel is taking longer than expected.
             </h1>
             <p className="mb-8 max-w-xs text-sm leading-relaxed text-ink-soft">
-              The research engine may still be starting up. Click below to check again.
+              The research engine may still be starting up on Render. Click below to check again.
             </p>
           </>
         ) : (
           <>
-            <h1 className="font-display mb-3 text-2xl font-semibold tracking-tight text-ink">
+            <h1 className="font-display mb-3 text-2xl font-bold tracking-tight text-ink sm:text-3xl">
               Unable to connect.
             </h1>
             <p className="mb-8 max-w-xs text-sm leading-relaxed text-ink-soft">
-              The research engine could not be reached. Please try again in a moment.
+              The research engine could not be reached. Please check your connection and try again.
             </p>
           </>
         )}
@@ -207,7 +200,7 @@ function WakeScreen({ status, elapsedSeconds, progress, detail, onRetry }: WakeS
               Starting… {elapsedSeconds}s
             </p>
             {/* Progress bar track */}
-            <div className="h-0.5 w-full overflow-hidden rounded-full bg-line">
+            <div className="h-1 w-full overflow-hidden rounded-full bg-line">
               <div
                 className="h-full rounded-full bg-accent transition-all duration-1000"
                 style={{ width: `${Math.round(progress * 100)}%` }}
@@ -221,27 +214,27 @@ function WakeScreen({ status, elapsedSeconds, progress, detail, onRetry }: WakeS
           <button
             type="button"
             onClick={onRetry}
-            className="transition-enabled rounded-lg border border-accent/60 bg-accent-soft px-6 py-2.5 text-sm font-semibold text-accent hover:border-accent hover:bg-accent hover:text-on-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="transition-enabled rounded-xl bg-accent px-6 py-2.5 text-sm font-semibold text-on-accent hover:bg-accent-strong shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             Retry connection
           </button>
         )}
 
-        {/* Expandable technical details — no secrets, no stack traces */}
+        {/* Expandable technical details — safe and sanitised */}
         {(isTimeout || status === "error") && detail && (
           <details className="mt-6 w-full max-w-xs text-left">
-            <summary className="cursor-pointer text-xs text-ink-faint transition-enabled hover:text-ink-soft [&::-webkit-details-marker]:hidden">
+            <summary className="cursor-pointer text-xs font-medium text-ink-faint transition-enabled hover:text-ink-soft [&::-webkit-details-marker]:hidden">
               Technical details
             </summary>
-            <p className="mt-2 rounded-lg border border-line bg-surface-muted px-3 py-2.5 text-xs leading-relaxed text-ink-soft">
+            <p className="mt-2 rounded-xl border border-line bg-surface-muted p-3 text-xs leading-relaxed text-ink-soft font-mono">
               {detail}
             </p>
           </details>
         )}
 
-        {/* Research-only disclaimer */}
-        <p className="mt-10 text-[11px] leading-relaxed text-ink-faint">
-          Sentinel is a research tool for public filings and market news.
+        {/* Research disclaimer */}
+        <p className="mt-8 text-[11px] leading-relaxed text-ink-faint">
+          Sentinel is a financial research tool for public filings and market news.
           <br />
           Not investment advice.
         </p>
@@ -251,30 +244,30 @@ function WakeScreen({ status, elapsedSeconds, progress, detail, onRetry }: WakeS
 }
 
 // ---------------------------------------------------------------------------
-// ConstellationBackground — pure CSS decorative motif
+// ConstellationBackground — decorative coordinate motif
 // ---------------------------------------------------------------------------
 
 function ConstellationBackground() {
   const dots: { cx: number; cy: number; r: number; opacity: number }[] = [
-    { cx: 15, cy: 20, r: 1.2, opacity: 0.5 },
-    { cx: 82, cy: 12, r: 0.8, opacity: 0.4 },
-    { cx: 35, cy: 78, r: 1.0, opacity: 0.45 },
-    { cx: 68, cy: 65, r: 1.4, opacity: 0.55 },
-    { cx: 90, cy: 40, r: 0.9, opacity: 0.38 },
-    { cx: 8, cy: 55, r: 1.1, opacity: 0.42 },
-    { cx: 50, cy: 92, r: 0.7, opacity: 0.35 },
-    { cx: 72, cy: 88, r: 1.2, opacity: 0.48 },
-    { cx: 25, cy: 45, r: 0.8, opacity: 0.4 },
-    { cx: 60, cy: 30, r: 1.0, opacity: 0.44 },
-    { cx: 92, cy: 75, r: 0.9, opacity: 0.36 },
-    { cx: 40, cy: 15, r: 1.3, opacity: 0.5 },
+    { cx: 15, cy: 20, r: 1.2, opacity: 0.4 },
+    { cx: 82, cy: 12, r: 0.8, opacity: 0.3 },
+    { cx: 35, cy: 78, r: 1.0, opacity: 0.35 },
+    { cx: 68, cy: 65, r: 1.4, opacity: 0.45 },
+    { cx: 90, cy: 40, r: 0.9, opacity: 0.3 },
+    { cx: 8, cy: 55, r: 1.1, opacity: 0.32 },
+    { cx: 50, cy: 92, r: 0.7, opacity: 0.25 },
+    { cx: 72, cy: 88, r: 1.2, opacity: 0.38 },
+    { cx: 25, cy: 45, r: 0.8, opacity: 0.3 },
+    { cx: 60, cy: 30, r: 1.0, opacity: 0.34 },
+    { cx: 92, cy: 75, r: 0.9, opacity: 0.28 },
+    { cx: 40, cy: 15, r: 1.3, opacity: 0.4 },
   ];
 
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
       {/* Outer constellation ring */}
       <div
-        className="animate-constellation absolute inset-0 m-auto h-[500px] w-[500px] opacity-20"
+        className="animate-constellation absolute inset-0 m-auto h-[520px] w-[520px] opacity-15"
         style={{ top: "50%", left: "50%", transform: "translate(-50%, -50%)" }}
       >
         <svg viewBox="0 0 100 100" className="h-full w-full">
@@ -283,19 +276,12 @@ function ConstellationBackground() {
             cy="50"
             r="48"
             fill="none"
-            stroke="rgba(200,160,48,0.25)"
-            strokeWidth="0.3"
+            stroke="var(--accent)"
+            strokeWidth="0.4"
             strokeDasharray="2 6"
           />
           {dots.map((d, i) => (
-            <circle
-              key={i}
-              cx={d.cx}
-              cy={d.cy}
-              r={d.r}
-              fill="rgba(200,160,48,1)"
-              opacity={d.opacity}
-            />
+            <circle key={i} cx={d.cx} cy={d.cy} r={d.r} fill="var(--accent)" opacity={d.opacity} />
           ))}
         </svg>
       </div>
@@ -306,8 +292,8 @@ function ConstellationBackground() {
           top: "50%",
           left: "50%",
           transform: "translate(-50%, -50%)",
-          width: "300px",
-          height: "300px",
+          width: "320px",
+          height: "320px",
         }}
       >
         <svg viewBox="0 0 100 100" className="h-full w-full">
@@ -316,7 +302,7 @@ function ConstellationBackground() {
             cy="50"
             r="48"
             fill="none"
-            stroke="rgba(200,160,48,0.4)"
+            stroke="var(--ink)"
             strokeWidth="0.5"
             strokeDasharray="1 4"
           />

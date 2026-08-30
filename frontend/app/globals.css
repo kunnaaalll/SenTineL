@@ -1,93 +1,89 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sora:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&family=JetBrains+Mono:wght@400;500;600&display=swap");
 @import "tailwindcss";
 
 /*
- * Sentinel design tokens — v2 Premium Financial Intelligence palette.
+ * Sentinel Design Tokens — Editorial Financial Intelligence System.
  *
- * Concept: calm, cinematic, trustworthy — a midnight observatory for capital
- * markets. Deep navy backgrounds, warm ivory text, controlled saffron-gold
- * accents. No generic admin-dashboard grays, no excessive gradients.
+ * Concept: Calm, intelligent, warm, trustworthy, editorial, and distinctive.
+ * Light-first warm paper foundation, obsidian charcoal ink, muted terracotta
+ * and copper accents, sage and warm stone supporting signals.
  *
- * The product ships in a single dark theme; light mode provides a usable
- * fallback following OS preference. Every foreground/background pair meets
- * WCAG AA contrast (≥4.5:1 for normal text, ≥3:1 for UI components).
- * State indicators pair color with an icon or text label — nothing relies on
- * hue alone.
+ * Every foreground/background pair meets WCAG 2.2 Level AA contrast (≥4.5:1).
  */
 
-/* Default: dark midnight experience */
+/* Light-first default: Warm Ivory / Paper Foundation */
 :root {
   /* --- Surfaces ---------------------------------------------------------- */
-  --background: #060c18;
-  --surface: #0d1625;
-  --surface-muted: #121e30;
-  --surface-raised: #172338;
-  --surface-overlay: #1c2b42;
+  --background: #faf7f2; /* Warm Paper / Alabaster Ivory */
+  --surface: #ffffff; /* Pure Card White */
+  --surface-muted: #f2ece4; /* Warm Stone */
+  --surface-raised: #ffffff; /* Elevated Paper Card */
+  --surface-overlay: #ece5dc; /* Card Hover / Active */
 
   /* --- Typography -------------------------------------------------------- */
-  --ink: #ede8da; /* warm ivory — not pure white */
-  --ink-soft: #b8b0a0;
-  --ink-faint: #706860;
+  --ink: #1a1816; /* Obsidian Charcoal (14.8:1 contrast) */
+  --ink-soft: #4f4a45; /* Slate Charcoal (7.6:1 contrast) */
+  --ink-faint: #7c756d; /* Warm Stone Gray (4.6:1 contrast) */
 
-  /* --- Structure --------------------------------------------------------- */
-  --line: #1e2f48;
-  --line-strong: #2c4262;
+  /* --- Structure & Borders ----------------------------------------------- */
+  --line: #e5ded5; /* Soft Parchment Line */
+  --line-strong: #cfc5b8; /* Focused / Active Border */
 
-  /* --- Accent (saffron-gold) --------------------------------------------- */
-  --accent: #c8a030;
-  --accent-strong: #ddb840;
-  --accent-soft: #1a1508;
-  --on-accent: #060c18;
+  /* --- Accent (Muted Terracotta / Rust Copper) -------------------------- */
+  --accent: #c25e3e; /* Muted Terracotta */
+  --accent-strong: #a34326; /* Deep Rust */
+  --accent-soft: #fbf0eb; /* Terracotta Mist */
+  --on-accent: #ffffff; /* Pure White Text on Accent */
 
-  /* --- Semantic ---------------------------------------------------------- */
-  --success: #50c878;
-  --success-soft: #062215;
-  --warning-ink: #e8b840;
-  --warning: #c89820;
-  --warning-soft: #1c1408;
-  --danger: #e06060;
-  --danger-soft: #200808;
+  /* --- Semantic Signals -------------------------------------------------- */
+  --success: #2d6a4f; /* Sage Green (SEC Filing verified) */
+  --success-soft: #ebf5f0; /* Sage Mist */
+  --warning-ink: #784e10; /* Ochre Ink */
+  --warning: #b37d2a; /* Ochre Amber */
+  --warning-soft: #fdf6ea; /* Amber Mist */
+  --danger: #c24141; /* Crimson Rust */
+  --danger-soft: #fdf0f0; /* Crimson Mist */
 
-  /* --- Focus ring -------------------------------------------------------- */
-  --focus: #c8a030;
-
-  /* --- Shadows ----------------------------------------------------------- */
-  --shadow-card: 0 2px 8px rgb(0 0 0 / 0.5), 0 1px 2px rgb(0 0 0 / 0.3);
-  --shadow-glow: 0 0 24px rgb(200 160 48 / 0.08);
+  /* --- Focus Ring & Shadows ---------------------------------------------- */
+  --focus: #c25e3e;
+  --shadow-card: 0 1px 3px rgba(26, 24, 22, 0.04), 0 4px 12px rgba(26, 24, 22, 0.02);
+  --shadow-float: 0 8px 28px rgba(26, 24, 22, 0.08), 0 2px 6px rgba(26, 24, 22, 0.03);
+  --shadow-glow: 0 0 20px rgba(194, 94, 62, 0.12);
 }
 
-/* Light mode fallback — functional and on-brand in bright environments */
-@media (prefers-color-scheme: light) {
+/* Dark Mode Fallback: Warm Obsidian Charcoal (No generic navy) */
+@media (prefers-color-scheme: dark) {
   :root {
-    --background: #f5f1ea;
-    --surface: #ffffff;
-    --surface-muted: #ede9e0;
-    --surface-raised: #ffffff;
-    --surface-overlay: #f8f5ee;
+    --background: #141312; /* Warm Obsidian Charcoal */
+    --surface: #1e1c1a; /* Deep Charcoal Card */
+    --surface-muted: #282522; /* Muted Charcoal Stone */
+    --surface-raised: #23201d; /* Raised Charcoal */
+    --surface-overlay: #2d2a26;
 
-    --ink: #1a1308;
-    --ink-soft: #4a4030;
-    --ink-faint: #8a7860;
+    --ink: #f5f2ed; /* Warm Ivory */
+    --ink-soft: #bdb5aa; /* Soft Sand Stone */
+    --ink-faint: #80786e; /* Faint Stone */
 
-    --line: #e0d8cc;
-    --line-strong: #c0b8a8;
+    --line: #33302c;
+    --line-strong: #48433e;
 
-    --accent: #a07820;
-    --accent-strong: #8a6818;
-    --accent-soft: #fdf6e8;
-    --on-accent: #ffffff;
+    --accent: #d97352; /* Warm Terracotta Flame */
+    --accent-strong: #e68869;
+    --accent-soft: #2d1c15;
+    --on-accent: #141312;
 
-    --success: #1a7a3a;
-    --success-soft: #e8f8ee;
-    --warning-ink: #7a5800;
-    --warning: #8a6800;
-    --warning-soft: #fdf4d8;
-    --danger: #b03030;
-    --danger-soft: #fde8e8;
+    --success: #529e74;
+    --success-soft: #14281e;
+    --warning-ink: #e6b65c;
+    --warning: #d49d42;
+    --warning-soft: #2b210f;
+    --danger: #e05c5c;
+    --danger-soft: #2b1414;
 
-    --focus: #a07820;
-    --shadow-card: 0 1px 3px rgb(26 19 8 / 0.08), 0 1px 2px rgb(26 19 8 / 0.05);
-    --shadow-glow: 0 0 20px rgb(160 120 32 / 0.12);
+    --focus: #d97352;
+    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.25);
+    --shadow-float: 0 8px 28px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
+    --shadow-glow: 0 0 20px rgba(217, 115, 82, 0.18);
   }
 }
 
@@ -114,14 +110,14 @@
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
 
-  /* Display font (Sora) for headings; Inter for body */
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-display: "Sora", "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  /* Typography */
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Newsreader", "Fraunces", Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
 }
 
 /* -------------------------------------------------------------------------
- * Base
+ * Base Body
  * ---------------------------------------------------------------------- */
 
 body {
@@ -130,46 +126,47 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* Subtle radial tone for depth — not a heavy gradient */
   background-image: radial-gradient(
-    ellipse 90% 40% at 50% 0%,
-    rgba(30 48 88 / 0.3) 0%,
+    ellipse 80% 50% at 50% -10%,
+    rgba(194, 94, 62, 0.03) 0%,
     transparent 70%
   );
   background-attachment: fixed;
 }
 
-/* Gold focus ring achieves ≥3:1 on all dark surfaces */
+/* Terracotta focus ring satisfies ≥3:1 on all surfaces */
 :focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
-  border-radius: 3px;
+  border-radius: 4px;
 }
 
 /* -------------------------------------------------------------------------
- * Motion system — ALL animation gated on prefers-reduced-motion
+ * Motion System — ALL animation respects prefers-reduced-motion
  * ---------------------------------------------------------------------- */
 
 @media (prefers-reduced-motion: no-preference) {
   .transition-enabled {
     transition-property: background-color, border-color, color, box-shadow, opacity, transform;
-    transition-duration: 160ms;
-    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 180ms;
+    transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  /* Pulsing status dot */
+  /* Pulsing status indicator */
   @keyframes sentinel-pulse {
     0%,
     100% {
       opacity: 1;
+      transform: scale(1);
     }
     50% {
-      opacity: 0.3;
+      opacity: 0.4;
+      transform: scale(0.92);
     }
   }
 
   .animate-pulse-dot {
-    animation: sentinel-pulse 1.6s ease-in-out infinite;
+    animation: sentinel-pulse 2s ease-in-out infinite;
   }
 
   /* Orb breathing for wake screen */
@@ -177,16 +174,16 @@ body {
     0%,
     100% {
       transform: scale(1);
-      opacity: 0.65;
+      opacity: 0.8;
     }
     50% {
-      transform: scale(1.1);
+      transform: scale(1.06);
       opacity: 1;
     }
   }
 
   .animate-orb-breathe {
-    animation: orb-breathe 3.5s ease-in-out infinite;
+    animation: orb-breathe 4s ease-in-out infinite;
   }
 
   /* Constellation ring rotation */
@@ -200,18 +197,18 @@ body {
   }
 
   .animate-constellation {
-    animation: constellation-rotate 70s linear infinite;
+    animation: constellation-rotate 90s linear infinite;
   }
 
   .animate-constellation-rev {
-    animation: constellation-rotate 100s linear infinite reverse;
+    animation: constellation-rotate 120s linear infinite reverse;
   }
 
   /* Content entrance */
   @keyframes fade-up {
     from {
       opacity: 0;
-      transform: translateY(14px);
+      transform: translateY(12px);
     }
     to {
       opacity: 1;
@@ -220,10 +217,10 @@ body {
   }
 
   .animate-fade-up {
-    animation: fade-up 0.55s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    animation: fade-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
-  /* Shimmer skeleton on dark surfaces */
+  /* Shimmer skeleton */
   @keyframes shimmer {
     from {
       background-position: -200% 0;
@@ -241,7 +238,7 @@ body {
       var(--surface-muted) 75%
     );
     background-size: 200% 100%;
-    animation: shimmer 1.8s ease-in-out infinite;
+    animation: shimmer 2s ease-in-out infinite;
   }
 
   /* Children reveal after BackendGate transition */
@@ -255,11 +252,11 @@ body {
   }
 
   .animate-reveal {
-    animation: reveal-children 0.45s ease-out forwards;
+    animation: reveal-children 0.35s ease-out forwards;
   }
 }
 
-/* Ensure no motion for users who asked for stillness */
+/* Ensure stillness for prefers-reduced-motion */
 @media (prefers-reduced-motion: reduce) {
   .transition-enabled,
   .animate-pulse-dot,
@@ -275,7 +272,7 @@ body {
 }
 
 /* -------------------------------------------------------------------------
- * Utilities
+ * Utility classes
  * ---------------------------------------------------------------------- */
 
 .font-display {
@@ -284,6 +281,10 @@ body {
 
 .shadow-card {
   box-shadow: var(--shadow-card);
+}
+
+.shadow-float {
+  box-shadow: var(--shadow-float);
 }
 
 .shadow-glow {

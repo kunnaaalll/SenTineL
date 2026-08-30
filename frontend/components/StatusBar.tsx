@@ -10,10 +10,8 @@ type BackendState =
   | { kind: "offline"; detail: string };
 
 /**
- * Header pill showing whether the backend can currently answer questions.
- * Polls GET /ready once on mount and then once a minute. Failures render as
- * explicit states — never a blank. BackendGate handles the wake-up screen;
- * StatusBar is informational context only.
+ * Header status pill showing backend health/readiness.
+ * Polls GET /ready once on mount and periodically.
  */
 export function StatusBar() {
   const [state, setState] = useState<BackendState>({ kind: "loading" });
@@ -48,7 +46,7 @@ export function StatusBar() {
 
   if (state.kind === "loading") {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-[11px] text-ink-faint">
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-muted px-2.5 py-1 text-[11px] text-ink-faint">
         <span aria-hidden className="animate-pulse-dot h-1.5 w-1.5 rounded-full bg-ink-faint" />
         Checking…
       </span>
@@ -58,14 +56,10 @@ export function StatusBar() {
   if (state.kind === "ready") {
     return (
       <span
-        className="inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent-soft px-2.5 py-1 text-[11px] font-medium text-accent"
-        title="The backend is configured and can answer questions."
+        className="inline-flex items-center gap-1.5 rounded-full border border-success/30 bg-success-soft px-2.5 py-1 text-[11px] font-semibold text-success"
+        title="The backend is configured and ready to answer questions."
       >
-        <span
-          aria-hidden
-          className="h-1.5 w-1.5 rounded-full bg-accent"
-          style={{ boxShadow: "0 0 4px rgba(200,160,48,0.6)" }}
-        />
+        <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-success" />
         Ready
       </span>
     );
@@ -75,10 +69,10 @@ export function StatusBar() {
   const isDegraded = state.kind === "degraded";
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
         isDegraded
           ? "border-warning/30 bg-warning-soft text-warning-ink"
-          : "border-line bg-surface text-ink-faint"
+          : "border-line bg-surface-muted text-ink-faint"
       }`}
       title={state.detail}
     >
@@ -107,13 +101,13 @@ export function WarningIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 16 16" fill="none" className={className} aria-hidden>
       <path
-        d="M8 2.2 14.6 13H1.4L8 2.2Z"
+        d="M8 2.5 14.5 13h-13L8 2.5Z"
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinejoin="round"
       />
-      <path d="M8 6.4v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <circle cx="8" cy="11.4" r="0.9" fill="currentColor" />
+      <path d="M8 6.5v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="8" cy="11.3" r="0.8" fill="currentColor" />
     </svg>
   );
 }

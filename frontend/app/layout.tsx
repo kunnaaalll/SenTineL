@@ -3,67 +3,72 @@ import Link from "next/link";
 import "./globals.css";
 import { StatusBar } from "@/components/StatusBar";
 import { BackendGate } from "@/components/BackendGate";
+import { SentinelLogo } from "@/components/SentinelLogo";
 
 export const metadata: Metadata = {
-  title: "Sentinel — Financial Research Copilot",
+  title: "Sentinel — Financial Intelligence Copilot",
   description:
     "Agentic research over SEC filings, earnings calls, and market news, with cited answers. Research tooling only — not investment advice.",
+  icons: {
+    icon: "/icon.svg",
+  },
+  openGraph: {
+    title: "Sentinel — Financial Intelligence Copilot",
+    description: "Agentic research over SEC filings and market news with grounded citations.",
+    type: "website",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-background text-ink">
-        {/* Skip navigation for keyboard users */}
+      <body className="min-h-screen bg-background text-ink antialiased flex flex-col">
+        {/* Skip navigation for keyboard accessibility */}
         <a
           href="#main-content"
-          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-accent focus:shadow-card"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-4 focus:py-2.5 focus:text-sm focus:font-semibold focus:text-accent focus:shadow-float focus:border focus:border-accent"
         >
           Skip to content
         </a>
 
-        {/* BackendGate wraps all content — shows wake-up screen on cold start */}
+        {/* BackendGate wraps all content — handles conditional cold-start wake-up */}
         <BackendGate>
           <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 sm:px-6">
-            {/* Header — Sentinel wordmark, navigation, status pill */}
-            <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line py-4">
+            {/* Header — Sentinel Brand Lockup, Navigation, Status */}
+            <header className="flex flex-wrap items-center justify-between gap-4 border-b border-line py-3.5 sm:py-4">
               <div className="flex items-center gap-3">
-                {/* Wordmark with gold accent dot */}
                 <Link
                   href="/"
                   aria-label="Sentinel — home"
-                  className="flex items-center gap-2 group"
+                  className="group flex items-center gap-2.5 transition-enabled"
                 >
-                  {/* Orb / signal indicator */}
-                  <span
-                    aria-hidden
-                    className="h-2 w-2 rounded-full bg-accent opacity-80 transition-enabled group-hover:opacity-100"
-                    style={{
-                      boxShadow: "0 0 8px rgba(200,160,48,0.5)",
-                    }}
+                  <SentinelLogo
+                    variant="symbol"
+                    size={24}
+                    className="transition-transform group-hover:scale-105"
                   />
-                  <span className="font-display text-lg font-semibold tracking-tight text-ink transition-enabled group-hover:text-accent">
-                    Sentinel
+                  <span className="font-display text-lg font-bold tracking-[0.04em] text-ink transition-enabled group-hover:text-accent">
+                    SENTINEL
                   </span>
                 </Link>
-                <span className="hidden text-sm text-ink-faint sm:inline" aria-hidden>
+                <span className="hidden text-xs text-ink-faint sm:inline" aria-hidden>
                   /
                 </span>
-                <span className="hidden text-sm text-ink-faint sm:inline">
-                  Financial research copilot
+                <span className="hidden font-sans text-xs font-medium tracking-wide text-ink-soft sm:inline">
+                  Financial Intelligence
                 </span>
               </div>
 
-              <nav aria-label="Primary" className="flex items-center gap-0.5 text-sm font-medium">
+              <nav aria-label="Primary" className="flex items-center gap-1 text-sm font-medium">
                 <Link
                   href="/"
-                  className="rounded-lg px-3 py-1.5 text-ink-soft transition-enabled hover:bg-surface-raised hover:text-ink"
+                  className="rounded-lg px-3 py-1.5 text-ink-soft transition-enabled hover:bg-surface-muted hover:text-ink focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   Research
                 </Link>
                 <Link
                   href="/sources"
-                  className="rounded-lg px-3 py-1.5 text-ink-soft transition-enabled hover:bg-surface-raised hover:text-ink"
+                  className="rounded-lg px-3 py-1.5 text-ink-soft transition-enabled hover:bg-surface-muted hover:text-ink focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   Sources
                 </Link>
@@ -72,11 +77,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <StatusBar />
             </header>
 
-            <main id="main-content" className="flex-1 py-6">
+            <main id="main-content" className="flex-1 flex flex-col py-5 sm:py-6">
               {children}
             </main>
 
-            <footer className="border-t border-line py-5 text-xs leading-relaxed text-ink-faint">
+            <footer className="border-t border-line py-4 text-xs leading-relaxed text-ink-faint">
               <p className="m-0">
                 Sentinel is a research tool for exploring public SEC filings and market news with
                 cited answers. It does not provide investment advice or make trading decisions.

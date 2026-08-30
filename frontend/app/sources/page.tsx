@@ -78,7 +78,9 @@ export default function SourcesPage() {
   return (
     <section aria-label="Data sources" className="space-y-6">
       <header>
-        <h1 className="mt-0 mb-1 text-xl font-semibold tracking-tight text-ink">Sources</h1>
+        <h1 className="font-display mt-0 mb-1 text-xl font-bold tracking-tight text-ink sm:text-2xl">
+          Sources
+        </h1>
         <p className="m-0 max-w-2xl text-sm leading-relaxed text-ink-soft">
           Check what Sentinel can reach right now, then pull documents into the research corpus.
           Ingestion runs server-side; this page never touches provider credentials.
@@ -86,12 +88,12 @@ export default function SourcesPage() {
       </header>
 
       {status.loadError && (
-        <div role="alert" className="rounded-lg border border-danger/30 bg-danger-soft px-4 py-3">
+        <div role="alert" className="rounded-xl border border-danger/30 bg-danger-soft px-4 py-3">
           <p className="m-0 flex items-start gap-2 text-sm font-medium text-danger">
             <WarningIcon className="mt-0.5 h-4 w-4 shrink-0" />
             Cannot reach the Sentinel backend, so availability cannot be checked.
           </p>
-          <p className="mb-0 mt-1 pl-6 text-xs text-ink-soft">{status.loadError}</p>
+          <p className="mb-0 mt-1 pl-6 text-xs text-ink-soft font-mono">{status.loadError}</p>
         </div>
       )}
 
@@ -132,7 +134,7 @@ export default function SourcesPage() {
       {(status.providers || status.ready) && (
         <div aria-label="Backend capabilities" className="grid gap-3 sm:grid-cols-2">
           {status.providers && (
-            <div className="rounded-lg border border-line bg-surface p-3.5 shadow-card">
+            <div className="rounded-xl border border-line bg-surface p-4 shadow-card">
               <h2 className="mt-0 mb-2 text-xs font-semibold uppercase tracking-wide text-ink-faint">
                 LLM providers
               </h2>
@@ -145,10 +147,10 @@ export default function SourcesPage() {
                       key={provider}
                       className="flex items-center gap-1.5 py-0.5 text-sm text-ink"
                     >
-                      <CheckIcon className="h-3.5 w-3.5 text-success" />
+                      <CheckIcon className="h-3.5 w-3.5 text-success shrink-0" />
                       <span className="font-mono">{provider}</span>
                       {provider === status.providers?.generation_default && (
-                        <span className="rounded bg-surface-muted px-1.5 py-0.5 text-[11px] font-medium text-ink-soft">
+                        <span className="rounded bg-surface-muted px-1.5 py-0.5 text-[11px] font-medium text-ink-soft border border-line">
                           default for generation
                         </span>
                       )}
@@ -172,7 +174,7 @@ export default function SourcesPage() {
           )}
 
           {status.ready && (
-            <div className="rounded-lg border border-line bg-surface p-3.5 shadow-card">
+            <div className="rounded-xl border border-line bg-surface p-4 shadow-card">
               <h2 className="mt-0 mb-2 text-xs font-semibold uppercase tracking-wide text-ink-faint">
                 Backend readiness
               </h2>
@@ -234,7 +236,7 @@ function AvailabilityCard({
   detail: string;
 }) {
   return (
-    <div className="rounded-lg border border-line bg-surface p-3.5 shadow-card">
+    <div className="rounded-xl border border-line bg-surface p-4 shadow-card">
       <div className="flex items-center justify-between gap-2">
         <h2 className="m-0 text-sm font-semibold text-ink">{name}</h2>
         {available === null ? (
@@ -247,7 +249,7 @@ function AvailabilityCard({
             Available
           </span>
         ) : (
-          <span className="inline-flex items-center gap-1 rounded bg-warning-soft px-1.5 py-0.5 text-[11px] font-semibold text-warning">
+          <span className="inline-flex items-center gap-1 rounded bg-warning-soft px-1.5 py-0.5 text-[11px] font-semibold text-warning-ink">
             <WarningIcon className="h-3 w-3" />
             Unavailable
           </span>

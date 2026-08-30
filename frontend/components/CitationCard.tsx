@@ -58,7 +58,7 @@ export function CitationCard({
       : null;
 
   return (
-    <li className="rounded-lg border border-line bg-surface-raised shadow-card">
+    <li className="rounded-xl border border-line bg-surface-raised shadow-card">
       <h4 className="m-0">
         <button
           type="button"
@@ -66,12 +66,11 @@ export function CitationCard({
           aria-expanded={expanded}
           aria-controls={panelId}
           onClick={onToggle}
-          className="flex w-full items-center gap-2.5 rounded-t-lg px-3 py-2.5 text-left transition-enabled hover:bg-surface-muted"
+          className="flex w-full items-center gap-2.5 rounded-t-xl px-3.5 py-3 text-left transition-enabled hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-accent"
         >
           <span
             aria-hidden
             className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded border border-accent/40 bg-accent-soft px-1 font-mono text-[11px] font-semibold text-accent"
-            style={{ boxShadow: "0 0 4px rgba(200,160,48,0.15)" }}
           >
             {index + 1}
           </span>
@@ -90,7 +89,9 @@ export function CitationCard({
           <svg
             viewBox="0 0 16 16"
             aria-hidden
-            className={`h-4 w-4 shrink-0 text-ink-faint ${expanded ? "rotate-180" : ""}`}
+            className={`h-4 w-4 shrink-0 text-ink-faint transition-transform duration-200 ${
+              expanded ? "rotate-180 text-accent" : ""
+            }`}
           >
             <path
               d="m4 6 4 4 4-4"
@@ -109,8 +110,8 @@ export function CitationCard({
           id={panelId}
           role="region"
           aria-labelledby={buttonId}
-          className="border-t border-line px-3 py-3"
-          style={{ borderLeftWidth: "2px", borderLeftColor: "var(--accent)" }}
+          className="border-t border-line px-3.5 py-3"
+          style={{ borderLeftWidth: "3px", borderLeftColor: "var(--accent)" }}
         >
           <p className="m-0 mb-2.5 text-sm leading-relaxed text-ink-soft">
             {citation.excerpt || "No excerpt available."}
@@ -118,7 +119,7 @@ export function CitationCard({
           <dl className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-faint">
             <div className="flex items-center gap-1">
               <dt className="sr-only">Source type</dt>
-              <dd className="m-0 rounded bg-surface-muted px-1.5 py-0.5 font-medium text-ink-soft">
+              <dd className="m-0 rounded bg-surface-muted px-1.5 py-0.5 font-medium text-ink-soft border border-line">
                 {sourceTypeLabel(citation)}
               </dd>
             </div>
@@ -137,7 +138,13 @@ export function CitationCard({
             {scorePct && (
               <div className="flex items-center gap-1">
                 <dt className="sr-only">Retrieval relevance</dt>
-                <dd className="m-0">{scorePct}</dd>
+                <dd className="m-0 text-success font-medium">{scorePct}</dd>
+              </div>
+            )}
+            {citation.chunk_id && (
+              <div className="ml-auto flex items-center gap-1">
+                <dt className="sr-only">Chunk ID</dt>
+                <dd className="m-0 font-mono text-[11px] text-ink-faint">#{citation.chunk_id}</dd>
               </div>
             )}
           </dl>
