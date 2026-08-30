@@ -41,8 +41,9 @@ _FILLER_PATTERNS = [
         r"i\s+(?:want|need)\s+to\s+(?:know|see))[,\s]+",
         re.IGNORECASE,
     ),
-    re.compile(r"^(?:and\s+)?(?:what|how)\s+about[,\s]+", re.IGNORECASE),
-    re.compile(r"^(?:and\s+)?tell\s+me\s+about[,\s]+", re.IGNORECASE),
+    re.compile(r"^(?:(?:okay|ok|and|then|so)\s+)?(?:what|how)\s+about(?:\s+the)?\s+", re.IGNORECASE),
+    re.compile(r"^(?:(?:okay|ok|and|then|so)\s+)?tell\s+me\s+about(?:\s+the)?\s+", re.IGNORECASE),
+    re.compile(r"^(?:okay|ok|then|so)\s*[,:\s]+", re.IGNORECASE),
 ]
 
 _DOLLAR_TICKER_RE = re.compile(r"\$([A-Za-z]{2,5})\b")

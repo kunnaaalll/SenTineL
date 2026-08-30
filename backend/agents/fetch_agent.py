@@ -337,8 +337,15 @@ class FetchAgent:
             )
             _footer_re = re.compile(r"Form\s+10-[KQ]\s*\|\s*\d+", re.IGNORECASE)
             _toc_re = re.compile(r"\|\s*Item\s+\d+.*\|\s*\d+\s*\|", re.IGNORECASE)
+            _toc_stub_re = re.compile(r"^\s*Table\s+of\s+Contents\b", re.IGNORECASE)
+            _xbrl_re = re.compile(r"fasb\.org/us-gaap|xmlns|#AccountingStandardsUpdate|us-gaap:", re.IGNORECASE)
             _preamble_re = re.compile(
                 r"(?:consolidated\s+(?:statements|balance\s+sheets)|the\s+following\s+table|were\s+as\s+follows|was\s+as\s+follows|as\s+follows\b)",
+                re.IGNORECASE,
+            )
+            _short_header_re = re.compile(
+                r"^(?:item\s+\d+[a-z]?|part\s+[ivx]+|table\s+of\s+contents|consolidated\s+statements|"
+                r"income\s+statements|balance\s+sheets|results\s+of\s+operations|financial\s+results)\b",
                 re.IGNORECASE,
             )
             substantive = [
@@ -346,7 +353,10 @@ class FetchAgent:
                 for c in raw
                 if not (_footer_re.search(c.text) and len(c.text.strip()) < 120)
                 and not (_toc_re.search(c.text) and len(c.text.strip()) < 600)
+                and not (_xbrl_re.search(c.text) and "|" not in c.text)
+                and not (_toc_stub_re.search(c.text) and len(c.text.strip()) < 300 and "|" not in c.text)
                 and not (_preamble_re.search(c.text.strip()) and "|" not in c.text and len(c.text.strip()) < 350)
+                and not (_short_header_re.search(c.text.strip()) and len(c.text.strip()) < 160 and "|" not in c.text)
             ]
             return (substantive if substantive else raw)[: self.top_k_per_search]
         except Exception as exc:  # noqa: BLE001 — a broken store must not kill the node
