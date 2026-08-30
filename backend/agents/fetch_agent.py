@@ -343,21 +343,25 @@ class FetchAgent:
                 r"(?:consolidated\s+(?:statements|balance\s+sheets)|the\s+following\s+table|were\s+as\s+follows|was\s+as\s+follows|as\s+follows\b)",
                 re.IGNORECASE,
             )
-            _short_header_re = re.compile(
-                r"^(?:item\s+\d+[a-z]?|part\s+[ivx]+|table\s+of\s+contents|consolidated\s+statements|"
-                r"income\s+statements|balance\s+sheets|results\s+of\s+operations|financial\s+results)\b",
-                re.IGNORECASE,
-            )
-            substantive = [
-                c
-                for c in raw
-                if not (_footer_re.search(c.text) and len(c.text.strip()) < 120)
-                and not (_toc_re.search(c.text) and len(c.text.strip()) < 600)
-                and not (_xbrl_re.search(c.text) and "|" not in c.text)
-                and not (_toc_stub_re.search(c.text) and len(c.text.strip()) < 300 and "|" not in c.text)
-                and not (_preamble_re.search(c.text.strip()) and "|" not in c.text and len(c.text.strip()) < 350)
-                and not (_short_header_re.search(c.text.strip()) and len(c.text.strip()) < 160 and "|" not in c.text)
-            ]
+
+            def _is_unhelpful(c: RetrievedChunk) -> bool:
+                raw_t = c.text.strip()
+                body = re.sub(r"^\[(?:Item|Part)\s+[^\]]+\]\s*", "", raw_t, flags=re.IGNORECASE).strip()
+                if len(body) < 150 and "|" not in body:
+                    return True
+                if _footer_re.search(raw_t) and len(raw_t) < 150:
+                    return True
+                if _toc_re.search(raw_t) and len(raw_t) < 600:
+                    return True
+                if _xbrl_re.search(raw_t) and "|" not in raw_t:
+                    return True
+                if _toc_stub_re.search(raw_t) and len(raw_t) < 400 and "|" not in raw_t:
+                    return True
+                if _preamble_re.search(raw_t) and "|" not in raw_t and len(raw_t) < 400:
+                    return True
+                return False
+
+            substantive = [c for c in raw if not _is_unhelpful(c)]
             return (substantive if substantive else raw)[: self.top_k_per_search]
         except Exception as exc:  # noqa: BLE001 — a broken store must not kill the node
             logger.warning("Store search failed for %s (%s)", filters, exc)

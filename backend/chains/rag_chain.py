@@ -179,18 +179,19 @@ class RagChain:
         )
 
         def _is_unhelpful(chunk: RetrievedChunk) -> bool:
-            t = chunk.text.strip()
-            if _footer_re.search(t) and len(t) < 120:
+            raw_t = chunk.text.strip()
+            body = re.sub(r"^\[(?:Item|Part)\s+[^\]]+\]\s*", "", raw_t, flags=re.IGNORECASE).strip()
+            if len(body) < 150 and "|" not in body:
                 return True
-            if _toc_re.search(t) and len(t) < 600:
+            if _footer_re.search(raw_t) and len(raw_t) < 150:
                 return True
-            if _xbrl_re.search(t) and "|" not in t:
+            if _toc_re.search(raw_t) and len(raw_t) < 600:
                 return True
-            if _toc_stub_re.search(t) and len(t) < 300 and "|" not in t:
+            if _xbrl_re.search(raw_t) and "|" not in raw_t:
                 return True
-            if _preamble_re.search(t) and "|" not in t and len(t) < 350:
+            if _toc_stub_re.search(raw_t) and len(raw_t) < 400 and "|" not in raw_t:
                 return True
-            if _short_header_re.search(t) and len(t) < 160 and "|" not in t:
+            if _preamble_re.search(raw_t) and "|" not in raw_t and len(raw_t) < 400:
                 return True
             return False
 
