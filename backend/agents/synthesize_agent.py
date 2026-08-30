@@ -168,8 +168,6 @@ class SynthesizeAgent:
 
         citations: list[dict] = []
         if generated is not None and generated.startswith(INSUFFICIENT_MARKER):
-            # Explicit, honest refusal — never dress missing evidence up as an
-            # answer (same discipline as the simple RAG chain).
             answer = f'I don\'t have enough indexed evidence to answer "{question}" reliably.'
             status = "insufficient_evidence"
         elif generated is not None:
