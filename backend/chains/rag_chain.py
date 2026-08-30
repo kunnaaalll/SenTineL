@@ -41,8 +41,9 @@ Rules:
 2. Never invent figures, dates, entities, or events that are not present in the excerpts.
 3. Map general user financial terminology to standard GAAP financial statement line items (e.g. 'profit' or 'overall profit' corresponds to Net Income, Operating Income, and Gross Margin; 'sales' or 'revenue' corresponds to Total Net Sales). Report all relevant figures and periods documented in the excerpts.
 4. If relevant excerpts exist, always synthesize what they state with inline citations. Do NOT output INSUFFICIENT_EVIDENCE when excerpts containing relevant financial data or discussion are provided.
-5. Quote precise figures with their stated periods rather than rounding.
-6. Output ONLY the final direct, polished response for the user. Never include internal monologue, chain-of-thought scratchpads, self-corrections, or meta-commentary."""
+5. If the user asks open-ended research questions or for suggestions (e.g. 'What can you suggest?', 'What else should I analyze?'), provide actionable, high-value financial research angles and metrics based on the company's filing (e.g., segment breakdowns, margin expansion, cash flow, debt profile, capital allocation) grounded in the available data.
+6. Quote precise figures with their stated periods rather than rounding.
+7. Output ONLY the final direct, polished response for the user. Never include internal monologue, chain-of-thought scratchpads, self-corrections, or meta-commentary."""
 
 
 @dataclass
