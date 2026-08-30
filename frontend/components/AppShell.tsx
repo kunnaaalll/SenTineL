@@ -101,9 +101,9 @@ function AppShellInner({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        {/* Scrollable Viewport */}
-        <main id="main-content" className="flex-1 overflow-y-auto min-h-0 relative">
-          <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col min-h-full px-4 sm:px-6 py-4 sm:py-5">
+        {/* Main Viewport */}
+        <main id="main-content" className="flex-1 overflow-hidden min-h-0 relative flex flex-col">
+          <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col h-full min-h-0 px-4 sm:px-6">
             {children}
           </div>
         </main>

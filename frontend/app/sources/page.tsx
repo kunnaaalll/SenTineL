@@ -76,7 +76,10 @@ export default function SourcesPage() {
     : [];
 
   return (
-    <section aria-label="Data sources" className="space-y-6">
+    <section
+      aria-label="Data sources"
+      className="flex-1 overflow-y-auto min-h-0 py-4 sm:py-5 space-y-6 pr-1"
+    >
       <header>
         <h1 className="font-display mt-0 mb-1 text-xl font-bold tracking-tight text-ink sm:text-2xl">
           Sources

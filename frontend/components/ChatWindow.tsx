@@ -265,43 +265,43 @@ export function ChatWindow({ conversationsHook }: ChatWindowProps) {
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="relative flex flex-1 flex-col justify-between">
+    <div className="flex flex-1 flex-col h-full min-h-0 justify-between overflow-hidden">
       {/* Screen-reader live region */}
       <div aria-live="polite" role="status" className="sr-only">
         {announcement}
       </div>
 
-      {/* Storage failure notice */}
-      {conv.storageError && (
-        <div
-          role="status"
-          className="mb-4 rounded-xl border border-warning/40 bg-warning-soft px-4 py-3 text-xs text-warning-ink"
-        >
-          {conv.storageError}
-        </div>
-      )}
+      {/* Main scrollable message stream container */}
+      <div className="flex-1 overflow-y-auto min-h-0 pr-1 py-3 space-y-4">
+        {/* Storage failure notice */}
+        {conv.storageError && (
+          <div
+            role="status"
+            className="mb-3 rounded-xl border border-warning/40 bg-warning-soft px-4 py-3 text-xs text-warning-ink"
+          >
+            {conv.storageError}
+          </div>
+        )}
 
-      {/* Session degradation banner (backend alive but unconfigured) */}
-      {isBackendDegraded && (
-        <div
-          role="status"
-          className="mb-4 rounded-xl border border-warning/30 bg-warning-soft px-4 py-3 text-sm text-warning-ink"
-        >
-          <p className="m-0 font-medium">
-            Research engine running in unconfigured mode.{" "}
-            <span className="font-normal opacity-85">
-              Live retrieval and answers may be unavailable until credentials are provided.
-            </span>
-          </p>
-        </div>
-      )}
+        {/* Session degradation banner (backend alive but unconfigured) */}
+        {isBackendDegraded && (
+          <div
+            role="status"
+            className="mb-3 rounded-xl border border-warning/30 bg-warning-soft px-4 py-3 text-sm text-warning-ink"
+          >
+            <p className="m-0 font-medium">
+              Research engine running in unconfigured mode.{" "}
+              <span className="font-normal opacity-85">
+                Live retrieval and answers may be unavailable until credentials are provided.
+              </span>
+            </p>
+          </div>
+        )}
 
-      {/* Main message stream container */}
-      <div className="flex-1 pb-10">
         {!hasMessages ? (
           <section
             aria-label="Getting started"
-            className="rounded-2xl border border-line bg-surface px-6 py-10 text-center shadow-card sm:px-12 sm:py-14"
+            className="rounded-2xl border border-line bg-surface px-6 py-10 text-center shadow-card sm:px-12 sm:py-14 my-auto"
           >
             {/* Sentinel brand mark */}
             <div className="mx-auto mb-5 flex justify-center">
@@ -346,13 +346,13 @@ export function ChatWindow({ conversationsHook }: ChatWindowProps) {
             {messages.map((message) => (
               <MessageBubble key={message.id} message={message} />
             ))}
-            <div ref={bottomRef} className="h-4" />
+            <div ref={bottomRef} className="h-2" />
           </section>
         )}
       </div>
 
-      {/* Fixed / Sticky Question Composer */}
-      <div className="sticky bottom-0 z-30 w-full pt-2 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] bg-gradient-to-t from-background via-background/95 to-transparent">
+      {/* Permanently Docked Bottom Composer */}
+      <div className="shrink-0 w-full pt-2 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] bg-gradient-to-t from-background via-background/95 to-transparent">
         <form onSubmit={submit} className="space-y-2">
           <div className="rounded-2xl border border-line bg-surface/98 backdrop-blur-xs p-3 shadow-float transition-enabled focus-within:border-accent/60">
             <label
