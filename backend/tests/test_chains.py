@@ -228,6 +228,55 @@ class TestRagHappyPath:
         assert result.filters_used == {"ticker": "AAPL"}
         assert all(c["source_id"].startswith("SEC:AAPL") for c in result.citations)
 
+    def test_auto_ingest_when_no_chunks_initially(self, clean_settings):
+        class FakePipeline:
+            def __init__(self, store):
+                self.store = store
+                self.ingested_calls = []
+
+            def ingest(self, params, source_type="sec_filing"):
+                self.ingested_calls.append((params, source_type))
+                from models.schemas import Chunk
+                self.store.add(
+                    [
+                        Chunk(
+                            chunk_id="nvda1",
+                            source_id="SEC:NVDA:10-K:2024-02-21",
+                            source_type="sec_filing",
+                            section="Item 7 - MD&A",
+                            page_or_position="chars 0-800",
+                            text="Data Center revenue for fiscal 2024 was $47.5 billion, up 217%.",
+                            entities=["NVDA", "FY2024"],
+                            metadata={"ticker": "NVDA", "title": "NVIDIA 10-K"},
+                        )
+                    ],
+                    [[2.5, 1.5]],
+                )
+
+        empty_store = FakeVectorStore()
+        provider = ScriptedProvider("embedder")
+        provider.generation_script = ["NVIDIA data center revenue was $47.5B [1]."]
+        engine = LLMEngine(providers=[provider])
+        settings = clean_settings(rag_top_k=2, embedding_dimension=3)
+        pipeline = FakePipeline(empty_store)
+
+        rewriter = QueryRewriter(settings=settings)
+        chain = RagChain(
+            engine,
+            empty_store,
+            settings=settings,
+            tracer=RecordingTracer(),
+            rewriter=rewriter,
+            pipeline=pipeline,
+        )
+        result = chain.run("What was NVIDIA data center revenue?")
+        assert result.insufficient_evidence is False
+        assert "auto_ingest" in result.agent_path
+        assert len(pipeline.ingested_calls) == 1
+        assert pipeline.ingested_calls[0][0]["ticker"] == "NVDA"
+        assert len(result.citations) == 1
+        assert result.citations[0]["source_id"] == "SEC:NVDA:10-K:2024-02-21"
+
 
 class TestInsufficientEvidence:
     def test_zero_retrieved_chunks_skips_generation(self, clean_settings):

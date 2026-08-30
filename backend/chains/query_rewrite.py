@@ -170,24 +170,7 @@ class QueryRewriter:
 
                 if inherited_ticker:
                     tickers = [inherited_ticker]
-                    words = cleaned_lower.split()
-                    if len(words) <= 6 or any(
-                        w in words
-                        for w in (
-                            "it",
-                            "its",
-                            "their",
-                            "that",
-                            "this",
-                            "do",
-                            "how",
-                            "what",
-                            "and",
-                            "why",
-                            "more",
-                        )
-                    ):
-                        cleaned = f"{inherited_ticker} {cleaned}"
+                    cleaned = f"{inherited_ticker} {cleaned}"
                 if inherited_year and not re.findall(r"\b(19\d\d|20\d\d)\b", cleaned):
                     cleaned = f"{cleaned} fiscal {inherited_year}"
 

@@ -15,6 +15,12 @@ export function sourceTypeLabel(citation: Citation): string {
   return SOURCE_TYPE_LABELS[prefix] ?? "Source";
 }
 
+export function citationSection(citation: Citation): string | null {
+  if (citation.section) return citation.section;
+  const match = /^\[([^\]]+)\]/.exec(citation.excerpt || "");
+  return match ? match[1] : null;
+}
+
 export function citationDate(citation: Citation): string | null {
   const match = /(\d{4}-\d{2}-\d{2})/.exec(`${citation.title} ${citation.source_id}`);
   return match?.[1] ?? null;
@@ -45,6 +51,7 @@ export function CitationCard({
   const buttonId = `citation-${index}-button`;
   const panelId = `citation-${index}-panel`;
   const date = citationDate(citation);
+  const section = citationSection(citation);
   const scorePct =
     typeof citation.score === "number" && citation.score > 0
       ? `${Math.round(citation.score * 100)}% match`
@@ -73,9 +80,9 @@ export function CitationCard({
             className="min-w-0 flex-1 truncate text-sm font-medium text-ink"
           >
             {citation.title || "Untitled source"}
-            {citation.section ? (
+            {section ? (
               <span className="ml-1.5 text-xs font-normal text-ink-faint">
-                — {citation.section.replace(/^Item\s+/i, "Item ")}
+                — {section.replace(/^Item\s+/i, "Item ")}
               </span>
             ) : null}
           </span>

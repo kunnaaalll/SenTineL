@@ -144,12 +144,35 @@ class RagChain:
         sec_additions: list[str] = []
         if "risk" in low and "item 1a" not in low:
             sec_additions.append("Item 1A Risk Factors")
-        if any(m in low for m in ["md&a", "management discussion", "results of operation"]) and "item 7" not in low:
-            sec_additions.append("Item 7 MD&A")
-        if any(m in low for m in ["balance sheet", "cash flow", "financial statement", "profit", "net income", "margin"]) and "item 8" not in low:
-            sec_additions.append("Item 8 Financial Statements")
+        if any(
+            m in low
+            for m in [
+                "md&a",
+                "management discussion",
+                "results of operation",
+                "profit",
+                "net income",
+                "margin",
+                "earnings",
+                "gross margin",
+                "operating income",
+            ]
+        ) and "item 7" not in low:
+            sec_additions.append("Item 7 MD&A Results of Operations")
+        if any(
+            m in low
+            for m in [
+                "balance sheet",
+                "cash flow",
+                "financial statement",
+                "statement of operations",
+                "statements of income",
+                "income statement",
+            ]
+        ) and "item 8" not in low:
+            sec_additions.append("Item 8 Consolidated Financial Statements statements of operations")
         if any(w in low for w in ["profit", "net income", "earnings", "income", "margin"]):
-            sec_additions.append("net income gross margin operating income")
+            sec_additions.append("gross profit net income gross margin operating income")
         if any(w in low for w in ["revenue", "sales", "net sales"]):
             sec_additions.append("total net sales revenue")
         if sec_additions:
@@ -173,6 +196,13 @@ class RagChain:
             r"(?:consolidated\s+(?:statements|balance\s+sheets)|the\s+following\s+table|were\s+as\s+follows|was\s+as\s+follows|as\s+follows\b)",
             re.IGNORECASE,
         )
+        _cross_ref_re = re.compile(
+            r"(?:information required by this item is (?:set forth|incorporated by reference)|"
+            r"required information is set forth in the consolidated financial statements|"
+            r"set forth in (?:the )?consolidated financial statements and notes|"
+            r"incorporated herein by reference)",
+            re.IGNORECASE,
+        )
         _short_header_re = re.compile(
             r"^(?:item\s+\d+[a-z]?|part\s+[ivx]+|table\s+of\s+contents|consolidated\s+statements|"
             r"income\s+statements|balance\s+sheets|results\s+of\s+operations|financial\s+results)\b",
@@ -193,6 +223,8 @@ class RagChain:
             if _toc_stub_re.search(raw_t) and len(raw_t) < 400 and "|" not in raw_t:
                 return True
             if _preamble_re.search(raw_t) and "|" not in raw_t and len(raw_t) < 400:
+                return True
+            if _cross_ref_re.search(raw_t) and "|" not in raw_t and len(raw_t) < 500:
                 return True
             return False
 
@@ -220,7 +252,7 @@ class RagChain:
                         )
                     with trace.span("retrieve_after_ingest", top_k=fetch_k, filters=str(merged_filters)):
                         raw_chunks = self.store.search(vector, top_k=fetch_k, filters=merged_filters)
-                        substantive = [c for c in raw_chunks if not _is_pure_toc(c)]
+                        substantive = [c for c in raw_chunks if not _is_unhelpful(c)]
                         chunks = substantive[:k] if substantive else raw_chunks[:k]
                     if chunks:
                         path.append("auto_ingest")
@@ -319,6 +351,11 @@ class RagChain:
 
 
 def _citation_for(chunk: RetrievedChunk) -> dict:
+    section = chunk.section
+    if not section:
+        m = re.match(r"^\[([^\]]+)\]", chunk.text.strip())
+        if m:
+            section = m.group(1).strip()
     return {
         "source_id": chunk.source_id,
         "title": chunk.metadata.get("title") or chunk.source_id,
@@ -326,7 +363,7 @@ def _citation_for(chunk: RetrievedChunk) -> dict:
         "url": chunk.metadata.get("url"),
         "chunk_id": chunk.chunk_id,
         "score": round(chunk.score, 4),
-        "section": chunk.section,
+        "section": section,
         "page_or_position": chunk.page_or_position,
     }
 

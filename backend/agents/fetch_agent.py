@@ -130,24 +130,7 @@ class QueryPlanner:
                     prev_tickers = self.detect_tickers(content)
                     if prev_tickers:
                         tickers = prev_tickers
-                        words = cleaned_lower.split()
-                        if len(words) <= 6 or any(
-                            w in words
-                            for w in (
-                                "it",
-                                "its",
-                                "their",
-                                "that",
-                                "this",
-                                "do",
-                                "how",
-                                "what",
-                                "and",
-                                "why",
-                                "more",
-                            )
-                        ):
-                            cleaned = f"{tickers[0]} {cleaned}"
+                        cleaned = f"{tickers[0]} {cleaned}"
                         # Inherit fiscal year context if missing in current follow-up query
                         prev_years = _YEAR_RE.findall(content)
                         cur_years = _YEAR_RE.findall(cleaned)
