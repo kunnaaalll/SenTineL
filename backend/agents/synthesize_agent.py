@@ -53,7 +53,8 @@ Rules:
 mismatches, say so explicitly instead of glossing over them.
 5. When notable gaps exist, end with a short "Limitations:" paragraph.
 6. If the evidence cannot support any useful answer, begin your reply with \
-{INSUFFICIENT_MARKER} followed by one sentence about what is missing."""
+{INSUFFICIENT_MARKER} followed by one sentence about what is missing.
+7. Output ONLY the final direct, polished response for the user. Never include internal monologue, chain-of-thought scratchpads, self-corrections, or meta-commentary."""
 
 _PROMPT_TEMPLATE = """Question: {question}
 

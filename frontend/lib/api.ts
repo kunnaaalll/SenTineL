@@ -358,7 +358,12 @@ export async function askQuery(
   options: Pick<RequestOptions, "signal" | "timeoutMs"> = {},
 ): Promise<QueryResponse> {
   return assertQueryResponse(
-    await request<QueryResponse>("/query", { method: "POST", body, ...options }),
+    await request<QueryResponse>("/query", {
+      method: "POST",
+      body,
+      timeoutMs: options.timeoutMs ?? QUERY_TIMEOUT_MS,
+      ...options,
+    }),
   );
 }
 
@@ -368,7 +373,12 @@ export async function askAgentsQuery(
   options: Pick<RequestOptions, "signal" | "timeoutMs"> = {},
 ): Promise<QueryResponse> {
   return assertQueryResponse(
-    await request<QueryResponse>("/agents/query", { method: "POST", body, ...options }),
+    await request<QueryResponse>("/agents/query", {
+      method: "POST",
+      body,
+      timeoutMs: options.timeoutMs ?? QUERY_TIMEOUT_MS,
+      ...options,
+    }),
   );
 }
 
@@ -380,6 +390,7 @@ export async function ingestSource(
   const value = await request<IngestionResponse>("/ingest", {
     method: "POST",
     body,
+    timeoutMs: options.timeoutMs ?? INGEST_TIMEOUT_MS,
     ...options,
   });
   if (typeof value.documents_ingested !== "number" || typeof value.chunks_indexed !== "number") {
