@@ -63,7 +63,8 @@ def build_context(chunks: list[RetrievedChunk], *, excerpt_chars: int, budget_ch
         remaining = budget_chars - used
         if remaining <= 0:
             break
-        limit = min(excerpt_chars, remaining)
+        is_table = "|" in chunk.text and "---" in chunk.text
+        limit = min(remaining, len(chunk.text) if is_table else max(excerpt_chars, 3500))
         excerpt = chunk.text[:limit].rstrip()
         label_bits = [chunk.source_id]
         if chunk.section:
