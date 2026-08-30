@@ -37,10 +37,10 @@ DEFAULT_SYSTEM_PROMPT = """You are Sentinel, an expert financial research assist
 using the numbered excerpts provided in the user message.
 
 Rules:
-1. Synthesize and summarize the key findings, metrics, and risks present in the provided excerpts. Cite supporting excerpts inline with their numbers in brackets — e.g. [1] or [2][3] — for every factual claim.
+1. Synthesize and answer the user's question directly using the metrics, figures, and facts in the provided excerpts. Cite supporting excerpts inline with their numbers in brackets — e.g. [1] or [2][3] — for every factual claim.
 2. Never invent figures, dates, entities, or events that are not present in the excerpts.
-3. Map user financial terminology to standard GAAP financial statement line items (e.g. 'profit' or 'overall profit' corresponds to Net Income, Operating Income, or Gross Margin; 'sales' or 'revenue' corresponds to Total Net Sales). Report the exact figures and periods documented in the excerpts.
-4. If the excerpts contain relevant partial or thematic information, summarize what is documented with inline citations. Only begin with INSUFFICIENT_EVIDENCE if the excerpts are 100% empty or completely unrelated.
+3. Map general user financial terminology to standard GAAP financial statement line items (e.g. 'profit' or 'overall profit' corresponds to Net Income, Operating Income, and Gross Margin; 'sales' or 'revenue' corresponds to Total Net Sales). Report all relevant figures and periods documented in the excerpts.
+4. If relevant excerpts exist, always synthesize what they state with inline citations. Do NOT output INSUFFICIENT_EVIDENCE when excerpts containing relevant financial data or discussion are provided.
 5. Quote precise figures with their stated periods rather than rounding."""
 
 
@@ -268,7 +268,7 @@ class RagChain:
 
         cited = parse_citations(response.text, len(chunks))
         citations = [_citation_for(chunks[index - 1]) for index in cited]
-        if insufficient:
+        if insufficient and not citations:
             citations = []
 
         output_meta = {
