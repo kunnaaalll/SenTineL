@@ -155,18 +155,6 @@ class QueryPlanner:
                             cleaned = f"{cleaned} fiscal {prev_years[-1]}"
                         break
 
-        # Section context expansion to align with indexed financial document sections
-        low = cleaned.lower()
-        sec_additions: list[str] = []
-        if "risk" in low and "item 1a" not in low:
-            sec_additions.append("Item 1A Risk Factors")
-        if any(m in low for m in ["md&a", "management discussion", "results of operation"]) and "item 7" not in low:
-            sec_additions.append("Item 7 MD&A")
-        if any(m in low for m in ["balance sheet", "cash flow", "financial statement"]) and "item 8" not in low:
-            sec_additions.append("Item 8 Financial Statements")
-        if sec_additions:
-            cleaned = f"{cleaned} {' '.join(sec_additions)}"
-
         years = sorted({int(y) for y in _YEAR_RE.findall(cleaned)})
         date_range = None
         if years:
@@ -185,7 +173,7 @@ class QueryPlanner:
 
 
 class FetchAgent:
-    """Retrieval + gated live ingestion. Injectable end to end for tests."""
+    """Agent node: retrieve evidence from vector store, live-ingesting if needed."""
 
     name = "fetch"
 
@@ -222,8 +210,22 @@ class FetchAgent:
             "agent_path": [*state.get("agent_path", []), self.name],
         }
 
+        low = plan.retrieval_query.lower()
+        sec_additions: list[str] = []
+        if "risk" in low and "item 1a" not in low:
+            sec_additions.append("Item 1A Risk Factors")
+        if any(m in low for m in ["md&a", "management discussion", "results of operation"]) and "item 7" not in low:
+            sec_additions.append("Item 7 MD&A")
+        if any(m in low for m in ["balance sheet", "cash flow", "financial statement", "profit", "net income", "margin"]) and "item 8" not in low:
+            sec_additions.append("Item 8 Financial Statements")
+        if any(w in low for w in ["profit", "net income", "earnings", "income", "margin"]):
+            sec_additions.append("net income gross margin operating income")
+        if any(w in low for w in ["revenue", "sales", "net sales"]):
+            sec_additions.append("total net sales revenue")
+        embed_query = f"{plan.retrieval_query} {' '.join(sec_additions)}" if sec_additions else plan.retrieval_query
+
         try:
-            vector = self.engine.embed([plan.retrieval_query])[0].vector
+            vector = self.engine.embed([embed_query])[0].vector
         except Exception as exc:  # noqa: BLE001 — degrade to empty evidence
             logger.warning("Fetch embed failed (%s); continuing without evidence", exc)
             trace.finish(output={"status": "embed_failed"})

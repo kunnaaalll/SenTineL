@@ -134,9 +134,25 @@ class RagChain:
 
         merged_filters = {**rewrite_filters, **(filters or {})}  # caller wins
 
-        # 2. Embed the normalized question.
+        # 2. Embed the normalized question with semantic retrieval expansions.
+        embed_query = rewritten
+        low = embed_query.lower()
+        sec_additions: list[str] = []
+        if "risk" in low and "item 1a" not in low:
+            sec_additions.append("Item 1A Risk Factors")
+        if any(m in low for m in ["md&a", "management discussion", "results of operation"]) and "item 7" not in low:
+            sec_additions.append("Item 7 MD&A")
+        if any(m in low for m in ["balance sheet", "cash flow", "financial statement", "profit", "net income", "margin"]) and "item 8" not in low:
+            sec_additions.append("Item 8 Financial Statements")
+        if any(w in low for w in ["profit", "net income", "earnings", "income", "margin"]):
+            sec_additions.append("net income gross margin operating income")
+        if any(w in low for w in ["revenue", "sales", "net sales"]):
+            sec_additions.append("total net sales revenue")
+        if sec_additions:
+            embed_query = f"{embed_query} {' '.join(sec_additions)}"
+
         with trace.span("embed", model_hint="question"):
-            embeddings = self.engine.embed([rewritten])
+            embeddings = self.engine.embed([embed_query])
         vector = embeddings[0].vector
         path.append("embed")
 

@@ -180,18 +180,6 @@ class QueryRewriter:
                             cleaned = f"{cleaned} fiscal {prev_years[-1]}"
                         break
 
-        # Section context expansion to align with indexed financial document sections
-        low = cleaned.lower()
-        sec_additions: list[str] = []
-        if "risk" in low and "item 1a" not in low:
-            sec_additions.append("Item 1A Risk Factors")
-        if any(m in low for m in ["md&a", "management discussion", "results of operation"]) and "item 7" not in low:
-            sec_additions.append("Item 7 MD&A")
-        if any(m in low for m in ["balance sheet", "cash flow", "financial statement"]) and "item 8" not in low:
-            sec_additions.append("Item 8 Financial Statements")
-        if sec_additions:
-            cleaned = f"{cleaned} {' '.join(sec_additions)}"
-
         # Normalize cashtags to canonical uppercase so embeddings see one form.
         rewritten = _DOLLAR_TICKER_RE.sub(lambda m: f"${m.group(1).upper()}", cleaned)
         rewritten = rewritten if rewritten else question.strip()
