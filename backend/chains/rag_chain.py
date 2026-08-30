@@ -165,7 +165,7 @@ class RagChain:
 
         def _is_unhelpful(chunk: RetrievedChunk) -> bool:
             t = chunk.text.strip()
-            if len(t) < 120:
+            if len(t) < 220:
                 return True
             if bool(re.search(r"\|\s*Item\s+\d+.*\|\s*\d+\s*\|", t)) and len(t) < 600:
                 return True

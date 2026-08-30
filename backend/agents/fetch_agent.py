@@ -316,9 +316,10 @@ class FetchAgent:
             substantive = [
                 c
                 for c in raw
-                if not (
+                if len(c.text.strip()) >= 220
+                and not (
                     bool(re.search(r"\|\s*Item\s+\d+.*\|\s*\d+\s*\|", c.text))
-                    and len(c.text) < 500
+                    and len(c.text) < 600
                 )
             ]
             return (substantive if substantive else raw)[: self.top_k_per_search]
