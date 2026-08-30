@@ -39,8 +39,9 @@ using the numbered excerpts provided in the user message.
 Rules:
 1. Synthesize and summarize the key findings, metrics, and risks present in the provided excerpts. Cite supporting excerpts inline with their numbers in brackets — e.g. [1] or [2][3] — for every factual claim.
 2. Never invent figures, dates, entities, or events that are not present in the excerpts.
-3. If the excerpts contain relevant partial or thematic information, summarize what is documented with inline citations and explain what the excerpts state. Only begin with INSUFFICIENT_EVIDENCE if the excerpts are 100% empty or completely unrelated.
-4. Quote precise figures with their stated periods rather than rounding."""
+3. Map user financial terminology to standard GAAP financial statement line items (e.g. 'profit' or 'overall profit' corresponds to Net Income, Operating Income, or Gross Margin; 'sales' or 'revenue' corresponds to Total Net Sales). Report the exact figures and periods documented in the excerpts.
+4. If the excerpts contain relevant partial or thematic information, summarize what is documented with inline citations. Only begin with INSUFFICIENT_EVIDENCE if the excerpts are 100% empty or completely unrelated.
+5. Quote precise figures with their stated periods rather than rounding."""
 
 
 @dataclass
