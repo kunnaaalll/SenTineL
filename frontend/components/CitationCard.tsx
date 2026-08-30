@@ -73,6 +73,11 @@ export function CitationCard({
             className="min-w-0 flex-1 truncate text-sm font-medium text-ink"
           >
             {citation.title || "Untitled source"}
+            {citation.section ? (
+              <span className="ml-1.5 text-xs font-normal text-ink-faint">
+                — {citation.section.replace(/^Item\s+/i, "Item ")}
+              </span>
+            ) : null}
           </span>
           <svg
             viewBox="0 0 16 16"
