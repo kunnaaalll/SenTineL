@@ -1,6 +1,6 @@
 # Sentinel — Brand & Visual Design Guidelines
 
-*Version 5.0 — Light-First Editorial Financial Intelligence System*
+*Version 6.0 — Dark Engineered Canvas & Sunset Accent System*
 
 ---
 
@@ -9,10 +9,10 @@
 Sentinel is an agentic financial intelligence copilot designed for institutional analysts, researchers, and professional investors. It analyzes SEC filings, earnings calls, and market news with verifiable citations and traceable agent reasoning.
 
 ### Core Character Attributes
-- **Editorial & Grounded:** Reads like a premium financial publication (e.g., Financial Times, The Economist) rather than a toy chatbot.
-- **Calm & Trustworthy:** Warm paper foundation and ink typography that promotes deep focus during prolonged research sessions.
-- **Precise & Architectural:** Clean lines, deliberate spacing, and strict geometric precision without decorative fluff.
-- **Honest & Verifiable:** Every fact is tethered to primary evidence. No fabricated progress, no fake percentages.
+- **Engineered & Precise:** Pure near-black canvas with 1px hairline borders and crisp typography.
+- **Calm & High-Contrast:** `#0A0A0A` dark canvas with pure white displays and high-legibility body text.
+- **Accented with Purpose:** Warm sunset orange (`#FF7A17`) accents used deliberately for primary callouts, active indicators, and citation badges.
+- **Honest & Verifiable:** Every financial claim is grounded to primary SEC filings and news sources with interactive `[n]` citations.
 
 ---
 
@@ -22,7 +22,7 @@ The Sentinel identity centers around a **clear, flat geometric S-mark** with int
 
 ```
        ┌───────────────────────────────┐
-       │   ●═══════════════════●       │  Upper Terracotta Arm (#C25E3E)
+       │   ●═══════════════════●       │  Upper Sunset Arm (#FF7A17)
        │         ╲           ║         │
        │          ╲          ║         │
        │           ╲         ║         │
@@ -30,62 +30,56 @@ The Sentinel identity centers around a **clear, flat geometric S-mark** with int
        │            ║        ╲         │
        │            ║         ╲        │
        │            ║          ╲       │
-       │            ●═══════════●      │  Lower Terracotta Arm
-       │             Charcoal Anchor   │  (#1A1816)
+       │            ●═══════════●      │  Lower Sunset Arm
+       │             Charcoal Anchor   │  (#FFFFFF / Contrast)
        └───────────────────────────────┘
 ```
 
 ### 2.1 Logo Construction & Meaning
 - **Geometric S-Curve:** Continuous architectural sweep representing the flow of financial filings and real-time market data.
-- **Diagonal Anchor Axis:** 45-degree cross-brace in charcoal ink symbolizing rigorous validation and cross-checking against primary sources.
+- **Diagonal Anchor Axis:** Precision cross-brace in white/ink symbolizing rigorous validation against primary sources.
 - **Sentinel Cardinal Nodes:** Precision calibration points at the extremes and center representing vigilant surveillance over disclosures.
 
 ### 2.2 Variants & Usage
 1. **Symbol Mark (`variant="symbol"`):** Standalone geometric S-mark. Used for app icons, avatars, header marks, and startup screens.
-2. **Wordmark (`variant="wordmark"`):** Typographic lockup with `SENTINEL` in editorial display font followed by a terracotta period (`.`).
+2. **Wordmark (`variant="wordmark"`):** Typographic lockup with `SENTINEL` in display font followed by an orange period (`.`).
 3. **Full Lockup (`variant="full"`):** Symbol + Wordmark + optional "Financial Intelligence" subtitle for splash screens, formal reports, and documentation headers.
 4. **Compact (`variant="compact"`):** Optimized at small dimensions (16px–24px) for desktop sidebar rail, browser favicons (`icon.svg`), and mobile headers.
-
-### 2.3 Clear Space & Minimum Sizes
-- **Clear Space:** Maintain minimum clear space equal to `0.5 × size` on all four sides.
-- **Minimum Digital Size:** 16px × 16px for favicon/compact, 24px × 24px for header navigation.
 
 ---
 
 ## 3. Color Palette & Token Architecture
 
-The Sentinel color system uses a **light-first warm paper foundation** paired with deep charcoal ink and warm terracotta copper accents.
+The Sentinel color system uses an **engineered dark canvas foundation** paired with warm sunset orange accents and crisp hairline dividers.
 
 | Token | Name | Hex | Usage & Role | Contrast Ratio |
 |---|---|---|---|---|
-| `--background` | Warm Paper | `#FAF7F2` | Page background, calm reading surface | Base canvas |
-| `--surface` | Pure White | `#FFFFFF` | Primary card panels, composer container | 1.05:1 on bg |
-| `--surface-muted`| Warm Stone | `#F2ECE4` | Secondary cards, example prompts, table headers | 1.1:1 on bg |
-| `--ink` | Obsidian Charcoal | `#1A1816` | Headings, primary body text, active state text | **14.8:1** (AAA) |
-| `--ink-soft` | Slate Charcoal | `#4F4A45` | Secondary text, labels, metadata | **7.6:1** (AAA) |
-| `--ink-faint` | Warm Stone Gray | `#7C756D` | Timestamps, hints, borders, subtle icons | **4.6:1** (AA) |
-| `--accent` | Muted Terracotta | `#C25E3E` | Primary action buttons, active indicator dots, card border accents | **4.7:1** (AA) |
-| `--accent-strong`| Deep Rust | `#A34326` | Button hover/active states | **6.4:1** (AAA) |
-| `--accent-soft` | Terracotta Mist | `#FBF0EB` | Tag badges, active pill backgrounds | Tint surface |
-| `--line` | Parchment Line | `#E5DED5` | Card dividers, section borders, table grid lines | 1.2:1 |
-| `--line-strong` | Active Border | `#CFC5B8` | Focused container borders, hover borders | 1.5:1 |
-| `--success` | Sage Green | `#2D6A4F` | Verified filings, high similarity matches, ready pills | **6.2:1** (AAA) |
-| `--warning` | Ochre Amber | `#B37D2A` | Limitations caveats, partial data warnings | **3.8:1** (UI) |
-| `--warning-ink` | Ochre Ink | `#784E10` | Warning card body text | **6.5:1** (AAA) |
-| `--danger` | Crimson Rust | `#C24141` | Error notices, delete actions, request cancellation | **4.8:1** (AA) |
+| `--background` | Dark Canvas | `#0A0A0A` | Page background, near-black foundation | Base canvas |
+| `--surface` | Charcoal Card | `#141518` | Primary card panels, assistant responses | 1.15:1 on bg |
+| `--surface-muted`| Muted Surface | `#191B1F` | Secondary cards, example prompts, table headers | 1.3:1 on bg |
+| `--surface-raised`| Raised Bubble | `#1C1D22` | User chat bubbles, elevated cards | 1.4:1 on bg |
+| `--ink` | Pure White | `#FFFFFF` | Headings, primary displays, high-contrast labels | **21:1** (AAA) |
+| `--ink-soft` | High-Legibility Body | `#DADBDF` | Assistant answer body, markdown text, list items | **15.2:1** (AAA) |
+| `--ink-faint` | Tracked Metadata | `#7D8187` | Timestamps, hints, mono labels, chunk IDs | **5.8:1** (AA) |
+| `--line` | Hairline Divider | `#212327` | Card borders, section dividers, table grid lines | 1.3:1 on bg |
+| `--line-strong` | Active Border | `#2F333A` | Focused container borders, hover borders | 1.8:1 on bg |
+| `--accent` | Sunset Orange | `#FF7A17` | Active indicator dots, card left-border accent, buttons | **6.1:1** (AAA) |
+| `--accent-strong`| Sunset Light | `#FF9E4F` | Button hover/active states, inline citation badges | **8.8:1** (AAA) |
+| `--accent-soft` | Sunset Mist | `#231710` | Citation button backgrounds, tag badges | Tint surface |
+| `--success` | Emerald Green | `#10B981` | Verified filings, ready status pills | **7.2:1** (AAA) |
+| `--warning` | Amber Warning | `#D97706` | Limitations caveats, partial data warnings | **5.5:1** (AA) |
+| `--danger` | Crimson Danger | `#EF4444` | Error notices, delete actions, request cancellation | **5.2:1** (AA) |
 
-*All primary text/background pairings meet or exceed WCAG 2.2 Level AA requirements (≥4.5:1).*
+*All text/background pairings strictly meet WCAG 2.2 Level AA / AAA standards.*
 
 ---
 
 ## 4. Typography
 
-Sentinel pairs a distinguished editorial serif for headings with a crisp modern sans for interfaces and a monospaced font for financial tabular metrics.
-
 ```
-Editorial Headings:   Newsreader / Georgia (Display Serif)
-User Interface & Body: Inter / System Sans
-Metrics & Citations:  JetBrains Mono / ui-monospace
+Display Headings:     Newsreader / Inter Display (Weight 700 / 600)
+User Interface & Body: Inter / System Sans (Weight 400 / 500)
+Metrics & Citations:  JetBrains Mono / GeistMono (Tabular Nums)
 ```
 
 ### Hierarchy Scale

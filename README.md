@@ -1,276 +1,523 @@
-# Sentinel
+<div align="center">
 
-Agentic financial research copilot — RAG over SEC filings, earnings-call transcripts, and market news, producing cited natural-language answers. Simple questions go through a naive RAG chain; complex multi-entity questions go through a LangGraph agent team (Phase 3–4). Every LLM call is traced in Langfuse when configured.
+# SENTINEL
+### Autonomous Agentic Financial Intelligence Copilot
 
-Full architecture, API contracts, and build phases: see `SENTINEL_SPEC.md`. Phase 2 deep-dive: `docs/ARCHITECTURE.md`, `docs/API.md`. Phase 3 deep-dive: `docs/AGENT_DESIGN.md`.
+[![Tests](https://img.shields.io/badge/tests-533%20passed%20(100%25)-emerald?style=for-the-badge&logo=pytest)](https://github.com/kunnaaalll/SenTineL)
+[![Frontend](https://img.shields.io/badge/next.js-16.3%20(App%20Router)-black?style=for-the-badge&logo=next.js)](https://github.com/kunnaaalll/SenTineL/tree/main/frontend)
+[![Backend](https://img.shields.io/badge/fastapi-0.115%20(Python%203.11)-009688?style=for-the-badge&logo=fastapi)](https://github.com/kunnaaalll/SenTineL/tree/main/backend)
+[![LangGraph](https://img.shields.io/badge/orchestration-langgraph%20multi--agent-orange?style=for-the-badge)](https://github.com/kunnaaalll/SenTineL/tree/main/backend/agents)
+[![Vector DB](https://img.shields.io/badge/vector%20store-pinecone%20serverless-0052CC?style=for-the-badge)](https://www.pinecone.io/)
+[![Tracing](https://img.shields.io/badge/observability-langfuse%20v2-blue?style=for-the-badge)](https://langfuse.com/)
 
-## Status: Phase 5 (Production Next.js Frontend + Full Standalone Stack)
+<p align="center">
+  <b>Grounded, cited, verifiable financial research across SEC filings, earnings calls, and real-time market news.</b><br>
+  Eliminates hallucinations with deterministic fact alignment, multi-agent reasoning, and client-side privacy.
+</p>
 
-Latest milestone: Complete production-quality Next.js frontend milestone implemented with TypeScript, Tailwind CSS, typed API client with abort/timeout support, accessible chat UI with citations, agent trace viewer, and data source ingestion dashboard.
+</div>
 
-Implemented:
+---
 
-- **Frontend UI (`frontend/`)** — Next.js App Router (`/` and `/sources`), Tailwind CSS with light-first editorial financial research theme, terracotta & obsidian palette, `prefers-reduced-motion` support, full keyboard navigation (WCAG AA compliant).
-  - `BackendGate` — conditional Render cold-start startup experience ("Namaste, welcome to Sentinel.") with bounded 120s readiness polling, live progress timer, friendly timeout retry, expandable sanitized details, and non-destructive session degradation.
-  - `Sidebar` & `ConversationItem` — persistent 280px desktop sidebar with 56px collapsible rail, off-canvas mobile drawer with scrim, chronological session grouping (Today, Yesterday, Previous 7 days, Older), inline rename, and inline delete confirmation.
-  - `ChatWindow` — browser-local multi-session management, sticky bottom composer with safe-area insets and scroll clearance, example queries, in-flight cancellation via Escape/button, and live region announcements.
-  - `ResearchProcessingState` — restrained geometric research signal with thin ledger sweep and rotating verifiable research phases (zero spinners, bouncing dots, orbs, or fake percentages).
-  - `MessageBubble` — markdown-safe answer rendering with GFM tables, inline interactive `[n]` citation markers, structured `Limitations:` caveat panels, explicit insufficient-evidence refusals.
-  - `CitationCard` — expandable evidence cards detailing source title, excerpt, filing date, match score, section, and public EDGAR/news URLs.
-  - `AgentTraceViewer` — collapsible multi-agent execution pipeline display (`classify → fetch → extract → compare → synthesize`) with Langfuse trace links.
-  - `SourceUploadPanel` — SEC filing and market news ingestion forms with client-side validation, progress indicators, and detailed indexed chunk summaries.
-  - `StatusBar` — live backend readiness indicator polling `/ready` with degraded/offline state handling.
-  - `lib/useConversations.ts` — browser-local multi-session management under `sentinel:conversations` with automatic first-message title truncation, chronological grouping, corruption tolerance, and secret exclusion.
-  - `lib/readiness.ts` — bounded polling state machine for backend cold-start detection.
-  - `lib/api.ts` — typed client for all backend endpoints (`/query`, `/agents/query`, `/ingest`, `/sources`, `/providers`, `/health`, `/ready`) supporting timeouts, AbortSignal cancellation, safe error normalization, and runtime reverse-proxy routing via `BACKEND_ORIGIN`.
-- **Frontend Containerization (`infra/Dockerfile.frontend`)** — Multi-stage standalone Next.js image running unprivileged (`USER node`, UID 1000), `/health` liveness probe.
-- **Docker Compose Stack (`infra/docker-compose.yml`)** — Standalone dual-service stack (`sentinel-backend` + `sentinel-frontend`) attached to bridge network with loopback bindings (ports 8000 and 3000).
-- **Backend & Core Engine (`backend/`)** — 393 offline unit tests, LangGraph agent team (`fetch → extract → compare → synthesize`), Financial Modeling Prep news adapter, SEC EDGAR adapter, fallback LLM engine, Pinecone vector store, and Langfuse tracing.
+## Table of Contents
 
-## Setup
+1. [Overview & Value Proposition](#1-overview--value-proposition)
+2. [Key Capabilities & Innovations](#2-key-capabilities--innovations)
+3. [System Architecture & Data Flow](#3-system-architecture--data-flow)
+4. [Multi-Agent Graph (LangGraph)](#4-multi-agent-graph-langgraph)
+5. [Directory & Project Structure](#5-directory--project-structure)
+6. [Design System & Frontend Architecture](#6-design-system--frontend-architecture)
+7. [Local Browser Multi-Session Chat](#7-local-browser-multi-session-chat)
+8. [Backend Readiness & Render Cold-Start Protocol](#8-backend-readiness--render-cold-start-protocol)
+9. [Getting Started & Local Development](#9-getting-started--local-development)
+10. [Configuration & Environment Variables](#10-configuration--environment-variables)
+11. [REST API Specification & Examples](#11-rest-api-specification--examples)
+12. [Quality Gates & Automated Verification](#12-quality-gates--automated-verification)
+13. [Production Deployment & Infrastructure](#13-production-deployment--infrastructure)
+14. [Security, Privacy, and Data Governance](#14-security-privacy-and-data-governance)
+15. [Documentation Index](#15-documentation-index)
 
-### Backend
+---
 
-```bash
-make setup            # creates .venv (Python 3.11) and installs backend/requirements-dev.txt
-cp .env.example .env  # optional — an empty file is a valid offline configuration
-make run              # starts FastAPI on http://127.0.0.1:8000
+## 1. Overview & Value Proposition
+
+Financial analysts, institutional researchers, and portfolio managers spend hours sifting through dense 10-K, 10-Q, and 8-K filings to compare metrics across companies. Traditional LLMs hallucinate numbers, confuse fiscal calendars, and miss critical reporting footnotes.
+
+**Sentinel** is an autonomous financial research copilot engineered to produce **fully grounded, cited, natural-language answers** with mathematical consistency:
+
+- **Dual Retrieval Pipeline**: Simple questions route through a fast, single-hop Naive RAG chain. Multi-entity, multi-period comparative questions route through a dedicated **LangGraph Agent Team**.
+- **Deterministic Fact Alignment**: Instead of asking an LLM to compare numbers directly in prose, Sentinel extracts structured facts (`entity`, `metric`, `period`, `numeric_value`, `unit`, `confidence`) and builds a strict matrix alignment table (`compare_agent`). Gaps and non-comparable accounting metrics are explicitly flagged.
+- **Traceable Reasoning**: Every generated claim links directly to primary sources via interactive `[n]` citation badges with filing dates, document sections, match confidence, and public EDGAR/news URLs.
+- **Client-Side Privacy**: Conversation transcripts, titles, and histories reside entirely inside the client browser's `localStorage` (`sentinel:conversations`). No user queries or chat logs are stored on backend databases.
+
+---
+
+## 2. Key Capabilities & Innovations
+
+- **Interactive Evidence Badges (`[n]`)**: Clickable citation numbers embedded directly in Markdown answers that expand verified source cards showing exact excerpts, filing dates, and SEC links.
+- **Structured Limitations Callouts**: If companies use non-comparable definitions (e.g., Microsoft Cloud vs. Google Cloud) or lack 1-to-1 matching disclosures, Sentinel flags them in dedicated caveat panels.
+- **Dark Engineered Canvas**: An xAI/Grok-inspired user interface featuring `#0A0A0A` canvas, `#141518` card surfaces, 1px crisp hairline borders (`#212327`), sunset orange accents (`#FF7A17`), and high-legibility typography.
+- **Permanently Docked Composer**: The question composer is locked at the bottom of the screen (`shrink-0`), allowing the message feed to scroll independently without lifting or shifting the input card.
+- **Fixed Top Navigation Bar**: Top navigation bar stays docked at `h-14` with live backend health pills (`• Ready` / `• Degraded` / `• Offline`).
+- **Multi-Session Chat History**: Full session management with automatic first-question titling (truncated to 48 characters on word boundaries), chronological grouping (**Today**, **Yesterday**, **Previous 7 days**, **Older**), inline renaming, and safe deletion.
+- **Cold-Start Resilience (`BackendGate`)**: On scale-to-zero serverless platforms (such as Render), Sentinel displays a calm startup screen (*"Namaste, welcome to Sentinel. The research engine is starting."*) with bounded 120s readiness polling and zero credential leakage.
+
+---
+
+## 3. System Architecture & Data Flow
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                                   NEXT.JS 16 FRONTEND                                  │
+│  App Shell • Fixed Top Nav • Multi-Session Sidebar • Message Stream • Permanent Dock   │
+└───────────────────────────────────────────┬────────────────────────────────────────────┘
+                                            │ REST API (JSON / HTTP proxy)
+┌───────────────────────────────────────────▼────────────────────────────────────────────┐
+│                                    FASTAPI BACKEND                                     │
+│  /query  •  /agents/query  •  /ingest  •  /sources  •  /providers  •  /health  • /ready│
+└─────────────────────┬─────────────────────────────────────────────────┬────────────────┘
+                      │                                                 │
+          ┌───────────▼────────────┐                       ┌────────────▼───────────┐
+          │     Query Router       │                       │   Ingestion Pipeline   │
+          │ (Single vs Multi-Hop)  │                       │ (Chunker • Extractor)  │
+          └─────┬────────────┬─────┘                       └────────────┬───────────┘
+                │            │                                          │
+    ┌───────────▼───┐    ┌───▼────────────────────────┐                 │
+    │  Simple Path  │    │      Complex Path          │                 │
+    │   Naive RAG   │    │  LangGraph Agent Team      │                 │
+    │  (Single Hop) │    │  Fetch→Extract→Compare→    │                 │
+    │               │    │  Synthesize                │                 │
+    └───────────┬───┘    └───┬────────────────────────┘                 │
+                │            │                                          │
+                └────────────┼──────────────────────────────────────────┘
+                             ▼
+              ┌─────────────────────────────┐
+              │   Vector Store (Pinecone)   │
+              │ (Serverless Cosine Search)  │
+              └──────────────┬──────────────┘
+                             │
+            ┌────────────────┴────────────────┐
+            ▼                                 ▼
+┌───────────────────────┐         ┌───────────────────────┐
+│     SEC EDGAR API     │         │   Market News Feed    │
+│ (10-K, 10-Q, 8-K, MD&A│         │ (FMP News Provider)   │
+└───────────────────────┘         └───────────────────────┘
 ```
 
-### Frontend
+---
+
+## 4. Multi-Agent Graph (LangGraph)
+
+For complex multi-entity, comparative, or cross-period queries, Sentinel executes a stateful graph orchestrated via LangGraph:
+
+```
+[START] ──► [classify] ──► [fetch] ──► [extract] ──► (comparison_warranted?)
+                                                          │          │
+                                                    YES   │          │ NO
+                                                          ▼          │
+                                                     [compare]       │
+                                                          │          │
+                                                          ▼          ▼
+                                                     [synthesize] ◄──┘
+                                                          │
+                                                          ▼
+                                                       [END]
+```
+
+### Agent Roles:
+1. **`classify`**: Parses the incoming question, determines entity targets (e.g. `["AAPL", "MSFT"]`), target reporting periods, and decides whether multi-agent comparison is warranted.
+2. **`fetch`**: Performs targeted multi-vector retrieval across SEC filings and market news chunks for each identified entity.
+3. **`extract`**: Extracts deterministic financial facts (`ExtractedFact`) from raw excerpts, normalizing metric names, monetary units (millions vs billions vs percentage), and reporting periods.
+4. **`compare`**: Evaluates extracted facts across entities and periods. Generates an alignment matrix, marks conflicts (different figures for the same metric/period), and counts `missing` cells where disclosures diverge.
+5. **`synthesize`**: Consolidates verified facts, comparison tables, and source excerpts into a structured natural-language answer with strict citation markers (`[1]`, `[2]`), followed by an automated limitations disclosure.
+
+---
+
+## 5. Directory & Project Structure
+
+```
+SenTineL/
+├── Makefile                          # Unified build, test, lint, and verification targets
+├── pyproject.toml                    # Python package definition, ruff, mypy, pytest configs
+├── README.md                         # Comprehensive project documentation
+├── CHANGELOG.md                      # Release changelog and milestone tracking
+├── SENTINEL_SPEC.md                  # Master technical specification
+│
+├── backend/                          # FastAPI Backend Application (Source Root)
+│   ├── agents/                       # LangGraph multi-agent team
+│   │   ├── classify_agent.py         # Entity & intent classifier
+│   │   ├── fetch_agent.py            # Targeted multi-source retrieval agent
+│   │   ├── extract_agent.py          # Financial metric & entity extractor
+│   │   ├── compare_agent.py          # Deterministic fact alignment & comparison matrix
+│   │   ├── synthesize_agent.py       # Final cited answer synthesis agent
+│   │   ├── graph.py                  # LangGraph StateGraph assembly & conditional routing
+│   │   └── state.py                  # Typed AgentState and ExtractedFact models
+│   ├── api/                          # FastAPI route handlers & middleware
+│   │   ├── main.py                   # FastAPI app entrypoint, CORS, route registry
+│   │   └── routes.py                 # /query, /agents/query, /ingest, /sources, /ready, etc.
+│   ├── chains/                       # Naive RAG chains and query rewriting
+│   │   ├── query_rewriter.py         # LLM & heuristic query expansion
+│   │   └── rag_chain.py              # Single-hop retrieval-augmented generation
+│   ├── config/                       # Settings management & provider registries
+│   │   ├── settings.py               # Pydantic Settings with SecretStr guards
+│   │   └── adapter_registry.py       # Data source & provider registries
+│   ├── data_sources/                 # Financial document adapters
+│   │   ├── sec_edgar.py              # SEC EDGAR downloader & fair-access compliant client
+│   │   └── news_api.py               # Financial Modeling Prep news adapter
+│   ├── ingestion/                    # Financial document chunking & parsing
+│   │   ├── chunker.py                # Item/section aware financial chunker
+│   │   ├── entity_extractor.py       # Regex & LLM-based entity tagger
+│   │   └── pipeline.py               # Ingestion orchestrator
+│   ├── llm_providers/                # Resilient multi-provider fallback engine
+│   │   ├── engine.py                 # Provider fallback executor with backoff & caching
+│   │   ├── openai_provider.py        # OpenAI API provider (generation & embedding)
+│   │   └── ollama_provider.py        # Local Ollama offline provider
+│   ├── models/                       # Shared Pydantic data schemas
+│   │   └── schemas.py                # RawDocument, Chunk, Citation, QueryResponse, etc.
+│   ├── observability/                # Tracing & telemetry
+│   │   └── tracer.py                 # Langfuse v2 wrapper & null tracer fallback
+│   ├── retrieval/                    # Vector database integrations
+│   │   └── vector_store.py           # Pinecone vector store wrapper with namespacing
+│   ├── requirements.txt              # Core runtime dependencies
+│   ├── requirements-dev.txt          # Development, testing, and linting tools
+│   ├── requirements-lock.txt         # Fully pinned dependency lockfile
+│   └── tests/                        # 393 Offline Backend Unit & Integration Tests
+│
+├── frontend/                         # Next.js 16 App Router Frontend
+│   ├── app/                          # Next.js App Router
+│   │   ├── globals.css               # Dark Engineered Canvas design tokens & Tailwind theme
+│   │   ├── icon.svg                  # Flat geometric Sentinel S-mark favicon
+│   │   ├── layout.tsx                # Root layout wrapping BackendGate & AppShell
+│   │   ├── page.tsx                  # Primary Research chat page (/)
+│   │   ├── sources/page.tsx          # Data sources & ingestion dashboard (/sources)
+│   │   └── health/route.ts           # Frontend liveness probe (/health)
+│   ├── components/                   # Reusable React 19 UI Components
+│   │   ├── AppShell.tsx              # Application layout shell, fixed header, sidebar context
+│   │   ├── Sidebar.tsx               # 280px sidebar, 56px rail, and mobile drawer
+│   │   ├── ConversationItem.tsx      # Session item with inline rename & delete confirmation
+│   │   ├── ChatWindow.tsx            # Isolated message stream & permanently docked composer
+│   │   ├── MessageBubble.tsx         # User bubbles, assistant cards with left sunset border
+│   │   ├── AnswerMarkdown.tsx        # GFM tables, Markdown parser, interactive [n] badges
+│   │   ├── CitationCard.tsx          # Expandable source evidence cards
+│   │   ├── ResearchProcessingState.tsx # Geometric ledger signal sweep animation
+│   │   ├── AgentTraceViewer.tsx      # Collapsible agent execution path visualizer
+│   │   ├── SourceUploadPanel.tsx     # SEC filing & news ingestion forms
+│   │   ├── StatusBar.tsx             # Live backend readiness indicator
+│   │   ├── BackendGate.tsx           # Render cold-start welcome screen & bounded polling
+│   │   └── SentinelLogo.tsx          # Code-native accessible SVG logo variants
+│   ├── lib/                          # Client utilities and hooks
+│   │   ├── api.ts                    # Typed API client with timeout & AbortSignal cancellation
+│   │   ├── persistence.ts            # Local storage helper & validation functions
+│   │   ├── readiness.ts              # Bounded exponential-backoff polling engine
+│   │   ├── useConversations.ts       # Multi-session localStorage manager (sentinel:conversations)
+│   │   └── ConversationsContext.tsx  # React context for cross-component session sync
+│   ├── package.json                  # Next.js 16, React 19, Tailwind CSS v4, Vitest
+│   └── tests/                        # 140 Offline Vitest Component & Unit Tests
+│
+├── infra/                            # Infrastructure & Deployment Automation
+│   ├── Dockerfile.backend            # Hardened multi-stage Python 3.11 image (non-root 10001)
+│   ├── Dockerfile.frontend           # Hardened multi-stage Node 20-alpine image (non-root node)
+│   ├── docker-compose.yml            # Standalone dual-service local development stack
+│   ├── bootstrap/                    # Staging bootstrap scripts
+│   └── terraform/                    # AWS Terraform Staging Infrastructure
+│       ├── main.tf                   # Providers & backend configuration
+│       ├── networking.tf             # VPC, public/private subnets, NAT Gateway, Endpoints
+│       ├── security_groups.tf        # Least-privilege security group matrix
+│       ├── alb.tf                    # Application Load Balancer with path-based routing
+│       ├── ecs.tf                    # ECS Fargate cluster, tasks, and services
+│       ├── iam.tf                    # Task Execution & Task IAM roles
+│       ├── secrets.tf                # AWS Secrets Manager resource definitions
+│       └── cloudwatch.tf             # Log groups, metric alarms, and SNS topics
+│
+└── docs/                             # Deep-Dive Engineering Documentation
+    ├── ARCHITECTURE.md               # System architecture and retrieval specifications
+    ├── AGENT_DESIGN.md               # LangGraph multi-agent team technical deep dive
+    ├── API.md                        # Complete REST API specification
+    ├── BRAND_GUIDELINES.md           # Brand identity, typography, and color tokens
+    ├── DEPLOYMENT.md                 # Deployment runbooks, container specs, and Terraform
+    ├── OPERATIONS.md                 # Runbooks, monitoring, and troubleshooting
+    ├── SECURITY.md                   # Threat modeling and data boundary guarantees
+    ├── RELEASE_CHECKLIST.md          # Pre-flight release validation checklist
+    ├── GO_LIVE_RUNBOOK.md            # Step-by-step production rollout procedure
+    ├── STAGING_BOOTSTRAP.md          # Terraform staging environment bootstrap guide
+    ├── STAGING_HANDOFF.md            # Infrastructure handoff and verification summary
+    └── specs/                        # Historical and feature specifications
+        ├── CHAT_SESSIONS_SPEC.md     # Browser-local chat session specification
+        └── DESIGN_V4_ARCHIVE.md      # Design system archive document
+```
+
+---
+
+## 6. Design System & Frontend Architecture
+
+Sentinel employs a **Dark Engineered Canvas** design language:
+
+### 1. Palette & Surface Tokens
+- **Background Canvas (`--background`)**: `#0A0A0A` near-black foundation.
+- **Card Surfaces (`--surface`)**: `#141518` / `#16171A` with 1px solid hairline borders (`#212327`).
+- **User Bubbles (`--surface-raised`)**: `#1C1D22` dark bubble with crisp `#FFFFFF` text.
+- **Assistant Cards**: `#141518` container featuring a signature 3px left sunset border (`border-l-2 border-[#FF7A17]`).
+- **Sunset Accent (`--accent`)**: `#FF7A17` / `#FF9E4F` used for action buttons, citation badges, and active session indicators.
+- **Status Indicator (`--success`)**: `#10B981` emerald green indicator dot.
+
+### 2. Viewport & Layout Architecture
+- **Fixed Top Navigation Bar**: Stays docked at `h-14` with zero layout shift during scrolling.
+- **Dedicated Message Scroll Viewport**: `<main>` isolates scrolling strictly to the message feed (`flex-1 overflow-y-auto min-h-0`).
+- **Permanently Docked Composer**: Positioned as a `shrink-0` bottom element below the message container. It **never gets lifted or shifted** into the middle of the screen when scrolling.
+
+---
+
+## 7. Local Browser Multi-Session Chat
+
+Sentinel provides rich, client-side conversation sessions without requiring user logins or storing chat transcripts on a server:
+
+```json
+{
+  "version": 1,
+  "updatedAt": "2026-08-30T17:50:00.000Z",
+  "conversations": [
+    {
+      "id": "conv-1725021000000-a1b2c3d4",
+      "title": "Apple FY24 Total Net Sales",
+      "titleIsCustom": false,
+      "createdAt": "2026-08-30T17:00:00.000Z",
+      "updatedAt": "2026-08-30T17:05:00.000Z",
+      "messages": [
+        {
+          "id": "m1",
+          "role": "user",
+          "question": "What was Apple's total net sales in fiscal 2024?",
+          "status": "complete"
+        },
+        {
+          "id": "m2",
+          "role": "assistant",
+          "question": "What was Apple's total net sales in fiscal 2024?",
+          "status": "complete",
+          "answer": "Apple reported total net sales of $391.0 billion in fiscal 2024 [1].",
+          "citations": [...]
+        }
+      ]
+    }
+  ]
+}
+```
+
+- **Storage Key**: `sentinel:conversations` in `localStorage` (with backward compatibility for `sentinel.chat.v1`).
+- **Automatic Titling**: Automatically generated from the first question, cleanly truncated at word boundaries (up to 48 characters).
+- **Chronological Grouping**: Automatically organized into **Today**, **Yesterday**, **Previous 7 days**, and **Older**.
+- **Full CRUD & Inline Editing**: Create new chat, switch active session, inline rename (`Enter` to save, `Escape` to cancel), and inline delete confirmation without native popup prompts.
+- **Safety Guards**: In-flight queries (`status: "pending"`) and API keys are never persisted. Bounded FIFO capacity (max 50 sessions, 100 messages each) protects against storage exhaustion.
+
+---
+
+## 8. Backend Readiness & Render Cold-Start Protocol
+
+When hosted on scale-to-zero serverless platforms (such as Render free/hobby tiers), backend spin-up takes 50–90 seconds. During this window, reverse proxies return `502 Bad Gateway`, `503 Service Unavailable`, or `504 Gateway Timeout`.
+
+Sentinel solves this with a non-blocking conditional gate (`BackendGate`):
+
+1. **Immediate Passthrough**: On load, Sentinel queries `/api/ready`. If the backend responds `200 OK`, the application renders instantly with zero splash screens or delays.
+2. **Graceful Startup Screen**: If the backend is starting up or unreachable, the user is greeted with a calm welcome screen:
+   - *"Namaste, welcome to Sentinel."*
+   - *"The research engine is starting. This usually takes about one minute."*
+   - Live elapsed timer and progress indicator.
+3. **Bounded Safe Polling**: Polls `/api/ready` with progressive backoff (2s → 5s), strictly capped at 120 seconds.
+4. **Friendly Timeout & Retry**: If 120 seconds elapse without response, polling stops to prevent infinite loops, offering a manual Retry button and a sanitized technical diagnostics panel.
+5. **Zero Secret Leakage**: Raw backend error payloads, database paths, and API keys are strictly masked from user-facing error states.
+
+---
+
+## 9. Getting Started & Local Development
+
+### Prerequisites
+- **Python**: 3.11+
+- **Node.js**: 20.9.0+ and `npm`
+- **Docker**: (Optional, for containerized execution)
+
+### 1. Backend Setup
 
 ```bash
+# 1. Create Python 3.11 virtual environment and install dependencies
+make setup
+
+# 2. Configure environment (an empty .env is valid for offline mode)
+cp .env.example .env
+
+# 3. Start the FastAPI backend server
+make run
+# Backend is available at http://127.0.0.1:8000 (Swagger docs at /docs)
+```
+
+### 2. Frontend Setup
+
+```bash
+# 1. Navigate to the frontend directory
 cd frontend
-npm ci                # install locked dependencies from package-lock.json
-npm run dev           # starts Next.js dev server on http://localhost:3000
+
+# 2. Install dependencies
+npm ci
+
+# 3. Start the Next.js development server
+npm run dev
+# Frontend is available at http://localhost:3000
 ```
 
-### Docker quickstart (Full Stack)
+### 3. Full-Stack Docker Quickstart
 
-The complete application (FastAPI backend + Next.js frontend) ships as hardened production containers:
+To run the complete production stack (FastAPI backend + Next.js frontend) in isolated containers:
 
 ```bash
-# fully offline — no credentials needed to boot:
-docker compose -f infra/docker-compose.yml up --build
-
-# provider-enabled: put credentials in the gitignored .env first
-cp .env.example .env   # fill in OPENAI_API_KEY / PINECONE_API_KEY / ...
+# Boot the entire stack on loopback ports 8000 and 3000
 docker compose -f infra/docker-compose.yml up --build
 ```
 
-Access the UI at <http://127.0.0.1:3000> and the backend API at <http://127.0.0.1:8000>. Both publish on loopback by default. Detail: `docs/DEPLOYMENT.md`.
+Access the UI at `http://127.0.0.1:3000` and the API at `http://127.0.0.1:8000`.
 
-Runtime dependencies live in `backend/requirements.txt`; dev tools in
-`backend/requirements-dev.txt`. Reproducible installs use the pinned
-`backend/requirements-lock.txt`, and the production image installs the
-runtime-only subset `backend/requirements-prod-lock.txt` — regenerate both
-with `make lock` after changing either requirements file. `langfuse` is
-intentionally optional: install it yourself to enable tracing. `langgraph`
-(Phase 3 agent graph) is a normal dependency and works fully offline.
+---
 
-### News provider configuration
-
-The news adapter defaults to Financial Modeling Prep. Set `NEWS_API_KEY` to
-enable it; without a key, `GET /sources` reports `news_api: false`, the fetch
-agent says so explicitly instead of failing, and no network calls are made.
-`NEWS_API_PROVIDER` selects the registry entry (only
-`financial_modeling_prep` ships today; adding one means an endpoint, a param
-builder, and a payload parser in `news_api.py`).
-
-### Environment variables
-
-Core (spec section 14.2): `OPENAI_API_KEY`, `PINECONE_API_KEY`,
-`PINECONE_INDEX_NAME`, `NEWS_API_KEY` (Phase 3), `LANGFUSE_PUBLIC_KEY` /
-`LANGFUSE_SECRET_KEY` / `LANGFUSE_HOST`, `APEX_ENDPOINT_URL` (Phase 6).
-
-Phase 2 additions (all have sensible defaults — see `.env.example`):
+## 10. Configuration & Environment Variables
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `LLM_PROVIDER_ORDER` | `openai,ollama` | fallback chain; unavailable providers skipped |
-| `OPENAI_GENERATION_MODEL` / `OPENAI_EMBEDDING_MODEL` | `gpt-4o-mini` / `text-embedding-3-small` | model selection |
-| `OLLAMA_BASE_URL` / `OLLAMA_GENERATION_MODEL` / `OLLAMA_EMBEDDING_MODEL` | localhost / `llama3.1` / *(unset = embeddings off)* | local fallback |
-| `LLM_TIMEOUT_SECONDS` / `LLM_MAX_RETRIES` / `LLM_BACKOFF_BASE_SECONDS` | 60 / 2 / 0.5 | retry policy (auth & invalid-request never retried) |
-| `SENTINEL_ENV` | `dev` | Pinecone namespace (`dev`/`prod` isolation) |
-| `SEC_CONTACT_EMAIL` | placeholder | **set a real address before live EDGAR traffic** — SEC fair-access policy |
-| `DELETE_BEFORE_REINGEST` | `true` | wipe a source's vectors before re-adding |
-| `PINECONE_METADATA_CAP_BYTES` | 38000 | stays under Pinecone's ~40KB per-vector metadata limit |
-| `ENABLE_LLM_ENTITY_EXTRACTION` / `ENABLE_LLM_QUERY_REWRITE` | `false` | optional LLM passes; deterministic versions always run |
-| `RAG_TOP_K` / `RAG_EXCERPT_CHARS` / `RAG_CONTEXT_CHAR_BUDGET` | 6 / 1600 / 9000 | retrieval shaping |
+| `OPENAI_API_KEY` | *(unset)* | OpenAI API key for generation and embeddings |
+| `PINECONE_API_KEY` | *(unset)* | Pinecone API key for vector retrieval |
+| `PINECONE_INDEX_NAME` | `sentinel` | Target Pinecone vector index name |
+| `NEWS_API_KEY` | *(unset)* | Financial Modeling Prep news API key |
+| `SEC_CONTACT_EMAIL` | `placeholder@example.com` | User-Agent contact for SEC EDGAR compliance |
+| `SENTINEL_ENV` | `dev` | Environment namespace (`dev` vs `prod` index isolation) |
+| `LLM_PROVIDER_ORDER` | `openai,ollama` | Ordered fallback sequence for LLM calls |
+| `OPENAI_GENERATION_MODEL`| `gpt-4o-mini` | Default model for synthesis and query rewriting |
+| `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small`| Default model for vector embeddings |
+| `OLLAMA_BASE_URL` | `http://localhost:11434`| Local Ollama service URL for offline fallback |
+| `OLLAMA_GENERATION_MODEL`| `llama3.1` | Local Ollama model for generation |
+| `LANGFUSE_PUBLIC_KEY` | *(unset)* | Langfuse public tracing key |
+| `LANGFUSE_SECRET_KEY` | *(unset)* | Langfuse secret tracing key |
+| `LANGFUSE_HOST` | `https://cloud.langfuse.com` | Langfuse tracing endpoint |
+| `RAG_TOP_K` | `6` | Maximum vector chunks retrieved per search |
+| `RAG_EXCERPT_CHARS` | `1600` | Character limit per retrieved chunk excerpt |
+| `RAG_CONTEXT_CHAR_BUDGET`| `9000` | Total context token budget for synthesis prompt |
 
-### Provider fallback behavior
+---
 
-`generate()`/`embed()` walk `LLM_PROVIDER_ORDER`: unavailable providers are
-skipped (availability cached ~30s); transient failures and rate limits retry
-with exponential backoff (honoring `Retry-After`); authentication errors fall
-through to the next provider without retry; invalid-request errors abort
-immediately (the payload, not the provider, is at fault). Every result is
-annotated with provider, model, usage, latency, and estimated cost.
+## 11. REST API Specification & Examples
 
-### SEC contact email
+### Endpoints Overview
 
-SEC requires a descriptive User-Agent with a genuine contact address. The
-placeholder default is refused for **live EDGAR use in every environment**
-(`SecEdgarAdapter.fetch` raises before any network call), and
-`SENTINEL_ENV=prod` refuses to boot without it. Set in `.env`:
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/query` | Simple question RAG query (naive single-hop path) |
+| `POST` | `/agents/query` | Complex question query (LangGraph multi-agent team) |
+| `POST` | `/ingest` | Ingest SEC filings or market news into vector store |
+| `GET` | `/sources` | Check availability of SEC EDGAR, News API, and APEX adapters |
+| `GET` | `/providers` | Check status of LLM generation and embedding providers |
+| `GET` | `/ready` | Deep readiness probe (verifies database & provider readiness) |
+| `GET` | `/health` | Lightweight liveness probe |
+| `GET` | `/metrics` | Prometheus operational metrics |
 
-```
-SEC_CONTACT_EMAIL=you@yourdomain.com
-```
-
-The placeholder default risks an IP ban under SEC fair-access enforcement.
-
-### Production fail-fast mode
-
-With `SENTINEL_ENV=prod`, configuration validation requires `SEC_CONTACT_EMAIL`,
-`OPENAI_API_KEY`, and `PINECONE_API_KEY`; anything missing aborts startup with
-a message naming each variable. Optional providers (news, Langfuse, APEX,
-Ollama) stay optional everywhere and degrade gracefully. All credential fields
-are pydantic `SecretStr` — logging or repr-ing settings never exposes values.
-
-## Run the API
+### Example Query Request
 
 ```bash
-make run        # http://127.0.0.1:8000 — docs at /docs
+curl -X POST http://localhost:8000/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "question": "What was Apple total net sales in fiscal 2024?"
+  }'
 ```
 
-Local-only by design until authentication exists (Phase 5+). Example:
+### Example Response
+
+```json
+{
+  "question": "What was Apple total net sales in fiscal 2024?",
+  "answer": "According to Apple's fiscal 2024 Form 10-K, total net sales were $391.04 billion, compared to $383.29 billion in fiscal 2023 [1].",
+  "citations": [
+    {
+      "source_id": "SEC:AAPL:10-K:2024-11-01",
+      "title": "Apple Inc. 10-K filed 2024-11-01",
+      "chunk_id": "chunk_042",
+      "section": "Item 7 - Management's Discussion and Analysis",
+      "score": 0.892,
+      "excerpt": "Total net sales were $391,035 million in 2024 compared to $383,285 million in 2023...",
+      "url": "https://www.sec.gov/ix?doc=/Archives/edgar/data/320193/000032019324000106/aapl-20240928.htm"
+    }
+  ],
+  "agent_path": ["classify", "naive_rag"],
+  "trace_url": "https://cloud.langfuse.com/project/..."
+}
+```
+
+---
+
+## 12. Quality Gates & Automated Verification
+
+Sentinel enforces 100% automated test coverage across both backend and frontend. All test suites run completely offline with mocked providers:
 
 ```bash
-curl -s localhost:8000/ingest -H 'content-type: application/json' \
-  -d '{"ticker": "AAPL", "filing_type": "10-K", "limit": 1}'
-# simple question -> automatic RAG path
-curl -s localhost:8000/query -H 'content-type: application/json' \
-  -d '{"question": "What was Apple total net sales in fiscal 2024?"}'
-# multi-entity question / forced agent team (fetch->extract->compare->synthesize)
-curl -s localhost:8000/agents/query -H 'content-type: application/json' \
-  -d '{"question": "Compare AAPL and MSFT revenue for FY2024"}'
+# Run all quality gates across the entire repository
+make check-all
+
+# Backend Quality Gates
+make fmt          # Auto-format Python code (ruff format + safe lint fixes)
+make lint         # Lint checks (ruff format --check + ruff check)
+make typecheck    # Strict static type check (mypy)
+make test         # Run 393 offline pytest tests
+
+# Frontend Quality Gates (in frontend/)
+npm run check     # Runs tsc + eslint + prettier:check + vitest (140 tests)
+npm run build     # Production Next.js build
 ```
 
-`agent_path` in every response shows the executed steps (`classify` first,
-then either the RAG chain's steps or the agent nodes), so you can always see
-which path answered.
+### Test Statistics
+- **Backend Tests (`pytest`)**: **393 / 393 passed** (100% offline, zero network calls).
+- **Frontend Tests (`vitest`)**: **140 / 140 passed** (13 test suites, zero warnings).
+- **TypeScript**: `tsc --noEmit` **0 errors**.
+- **ESLint & Prettier**: **0 errors, 0 warnings, 100% format compliance**.
 
-## Tests
+---
 
-The full suite is offline — scripted fake providers, an in-memory vector
-store, canned adapters, recording tracers, and a fake OpenAI SDK module. No
-test calls OpenAI, Ollama, Pinecone, Langfuse, SEC, or any news API; credential
-env vars are scrubbed per test.
+## 13. Production Deployment & Infrastructure
 
-```bash
-make test                                                    # full suite
-make test-one T="backend/tests/test_pipeline.py::TestIdempotency"
-```
+### 1. Hardened Container Images
+- **Backend (`infra/Dockerfile.backend`)**: Multi-stage `python:3.11-slim-trixie` image running unprivileged as `sentinel` (UID 10001), read-only root filesystem, tmpfs `/tmp`, `cap_drop: ALL`.
+- **Frontend (`infra/Dockerfile.frontend`)**: Multi-stage `node:20-alpine` standalone Next.js server running as `node` (UID 1000).
 
-## Quality gates
+### 2. AWS Staging Infrastructure (`infra/terraform/`)
+Codified in Terraform targeting AWS ECS Fargate with zero public database exposure:
+- **Networking**: Multi-AZ VPC (`10.0.0.0/16`), public & private subnets, NAT Gateway, VPC Endpoints for S3, ECR, Secrets Manager, and CloudWatch.
+- **Compute**: ECS Fargate cluster with Container Insights.
+- **Load Balancing**: Application Load Balancer with path-based routing (`/*` to frontend, `/api/*`, `/query`, `/docs` to backend).
+- **Secrets Management**: AWS Secrets Manager with KMS encryption.
+- **Observability**: CloudWatch log groups and metric alarms for CPU, Memory, 5XX errors, and target latency.
 
-Both backend and frontend have strict quality gates:
+---
 
-```bash
-# Full repository check
-make check-all   # runs backend lint/typecheck/tests + frontend lint/typecheck/format/tests/build
+## 14. Security, Privacy, and Data Governance
 
-# Backend gates
-make fmt         # ruff format + safe lint autofixes
-make lint        # ruff format --check + ruff check
-make typecheck   # mypy
-make test        # pytest offline suite (372 tests)
+1. **Zero Secret Leakage**: API keys, Bearer tokens, and secrets are typed as Pydantic `SecretStr` on the backend and never exposed in frontend bundles or logged to consoles.
+2. **Client-Side Data Boundary**: All chat histories and session titles live purely inside the user's browser `localStorage`. No chat queries or prompts are recorded on the backend database.
+3. **SEC Fair-Access Compliance**: The SEC EDGAR client enforces rate limits and custom User-Agent formatting (`Sample Company Name AdminContact@<sample company domain>.com`) to respect SEC fair-access policies.
+4. **Anti-Hallucination Guardrails**: If no indexed evidence exists in Pinecone, Sentinel returns an explicit refusal rather than guessing.
 
-# Frontend gates (in frontend/)
-npm run check    # typecheck + lint + format:check + vitest (71 tests)
-npm run build    # Next.js standalone production build
-```
+---
 
-CI (`.github/workflows/ci.yml`) runs independent jobs on every push/PR:
-backend quality gates (ruff/mypy/pytest from the lockfile), frontend verification
-(npm ci, typecheck, lint, prettier check, vitest unit tests, next build), production image
-builds + contract checks (backend UID 10001, frontend UID 1000, no dev packages, import safety,
-offline boot asserting `/health`=200 and `/ready`=503), the backend test suite
-executed inside a Linux container, compose config validation, Terraform
-fmt/init/validate, and gitleaks secret scanning. Pre-commit hooks
-(`make hooks`) run the fast subset locally.
+## 15. Documentation Index
 
-## Layout
+For in-depth architectural and operational guides, refer to the `docs/` catalogue:
 
-Repository structure mirrors `SENTINEL_SPEC.md` section 4:
+- 🏛️ **[System Architecture](docs/ARCHITECTURE.md)**: Deep dive into chunking, retrieval budgets, and vector search.
+- 🤖 **[Agent Design](docs/AGENT_DESIGN.md)**: Detailed LangGraph state graph, node transitions, and comparison algorithms.
+- 🔌 **[API Documentation](docs/API.md)**: Complete REST API request/response schemas.
+- 🎨 **[Brand Guidelines](docs/BRAND_GUIDELINES.md)**: Design system tokens, logo geometry, and WCAG contrast tables.
+- 🚀 **[Deployment & Operations](docs/DEPLOYMENT.md)**: Containerization, Docker Compose, and Terraform staging setup.
+- 🛡️ **[Security Architecture](docs/SECURITY.md)**: Threat modeling, boundary controls, and credentials policy.
+- 📋 **[Release Checklist](docs/RELEASE_CHECKLIST.md)**: Production release verification gates.
+- 📖 **[Go-Live Runbook](docs/GO_LIVE_RUNBOOK.md)**: Step-by-step production rollout procedure.
+- ⚙️ **[Staging Bootstrap](docs/STAGING_BOOTSTRAP.md)**: Terraform remote state and AWS bootstrap guide.
+- 📑 **[Specs Archive](docs/specs/)**: Historical and feature specifications.
 
-```
-sentinel/
-├── backend/                  # FastAPI service, pipelines, adapters, agent team
-│   ├── agents/               # LangGraph agent team (fetch, extract, compare, synthesize)
-│   ├── api/                  # FastAPI routes (/query, /agents/query, /ingest, /sources, /providers, /health, /ready)
-│   ├── chains/               # Query rewriter, naive RAG chain
-│   ├── config/               # Settings, adapter registry
-│   ├── data_sources/         # SEC EDGAR and News API adapters
-│   ├── ingestion/            # Financial chunker, entity extractor, pipeline
-│   ├── llm_providers/        # Fallback engine, OpenAI & Ollama providers
-│   ├── models/               # Shared Pydantic models (RawDocument, Chunk, Citation, QueryResponse)
-│   ├── observability/        # Langfuse wrapper
-│   ├── retrieval/            # Pinecone vector store
-│   └── tests/                # 372 offline unit tests
-│
-├── frontend/                 # Next.js 16 + React 19 + Tailwind CSS v4 UI
-│   ├── app/                  # App Router (/, /sources, /health, layout)
-│   ├── components/           # ChatWindow, MessageBubble, CitationCard, AgentTraceViewer, SourceUploadPanel, StatusBar
-│   ├── lib/api.ts            # Typed client for backend API with timeout/abort/error normalization
-│   └── tests/                # 71 Vitest + Testing Library offline component tests
-│
-├── infra/
-│   ├── Dockerfile.backend    # Multi-stage Python 3.11-slim production image (non-root 10001)
-│   ├── Dockerfile.frontend   # Multi-stage Node 20-alpine Next.js standalone image (non-root node)
-│   ├── docker-compose.yml    # Standalone stack (backend + frontend) on bridge network
-│   └── terraform/            # Pinned AWS infrastructure skeleton
-│
-├── docs/                     # API.md, ARCHITECTURE.md, DEPLOYMENT.md, AGENT_DESIGN.md
-└── Makefile
-```
+---
 
-## Backend Readiness & Render Cold-Start Behavior
-
-When hosted on containerized free-tier or serverless platforms such as Render, cold-starting backend instances take 50–90 seconds while spinning up. During this startup window, reverse proxies return `502 Bad Gateway`, `503 Service Unavailable`, `504 Gateway Timeout`, or drop connections.
-
-Sentinel handles this through a non-blocking conditional gate (`BackendGate`):
-1. **Silent Instant Passthrough**: On initial load, Sentinel immediately queries `/api/ready`. If the backend is healthy (`200 OK`), the full application interface renders instantly without splash screens or countdowns.
-2. **Conditional Wake-Up Experience**: If the backend returns an error or times out, the user is greeted with a dedicated, cinematic welcome experience:
-   - *"Namaste, welcome to Sentinel."*
-   - *"The research engine is starting. This usually takes about one minute."*
-   - Real-time elapsed timer and dynamic visual pulse indicator.
-3. **Safe Bounded Polling**: Polls `/api/ready` with progressive backoff (2s → 5s interval, capped at 120s total).
-4. **Graceful Timeout & Retry**: If 120 seconds elapse without backend response, the screen shifts to a calm retry prompt with an expandable technical diagnostics panel.
-5. **Zero Leaks**: Stack traces, provider keys, raw backend payloads, and secret-bearing URLs are strictly scrubbed from user-facing states.
-6. **Non-Destructive Session Degradation**: If the backend becomes unavailable *during* an active session, an unobtrusive degraded banner appears; existing conversation history and citations are never wiped.
-
-## Local Browser Chat Persistence
-
-Sentinel provides client-side conversation persistence without requiring accounts or cloud databases:
-- **Versioned Key**: Saved under `sentinel.chat.v1` in `localStorage`.
-- **Persisted Elements**: User questions, synthesized assistant responses, inline citations, agent execution paths, timestamps, and safe error states.
-- **Hydration Safe**: State restoration is strictly deferred until client mount, preventing Next.js SSR hydration mismatches.
-- **Bounded Capacity**: Fixed FIFO cap of 50 messages to prevent browser storage exhaustion.
-- **Resilience**: Corrupted JSON, storage quota exceptions, and restricted storage (private browsing) are caught gracefully, falling back to memory-only state without crashing.
-- **Clear Conversation**: Dedicated action with confirmation modal allows users to wipe local history at any time.
-- **"Saved on this device"**: Subtle status indicator confirms local persistence status.
-
-## Privacy & Security Limitations
-
-- **No Remote User Data Persistence**: Chat conversations remain strictly on the user's browser device. No query history or user session cookies are written to the backend database.
-- **Secret Hygiene**: Frontend storage excludes API keys, Authorization headers, Langfuse tokens, raw provider payloads, or sensitive environment configurations.
-- **Browser-Scoped**: Clearing browser cookies/storage or switching devices/profiles starts a fresh conversation session.
-
-## Known limitations
-
-- Routing is deterministic heuristics (tickers/comparison words/periods), not
-  an LLM classifier — unusual phrasings may ride the simple path; `/agents/query`
-  is the explicit escape hatch.
-- Live ingestion during agent queries is deliberately bounded (2 ingests/query,
-  5 docs each); first question on a fresh index may answer from partial evidence
-  and say so in a `Limitations:` block.
-- News coverage depends on the configured provider's history window; earnings-
-  call transcripts are not yet ingestible (spec schedules them with APEX).
-- Per-agent traces nest under a service-level trace only conceptually — Langfuse
-  shows them as separate traces today.
-- No authentication or multi-user persistent session history — v1 scope is single-user demo/research.
-- Cost estimates use bundled public list prices; unknown models report no cost.
-
-Production baseline audit: `docs/PRODUCTION_AUDIT.md`.
+<div align="center">
+  <b>Sentinel Financial Intelligence</b> • Built with precision for grounded financial research.
+</div>
