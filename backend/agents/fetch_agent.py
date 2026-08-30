@@ -248,6 +248,10 @@ class FetchAgent:
             found = self._search(vector, {**filters_base, "source_type": source_type})
             for chunk in found:
                 retrieved[chunk.chunk_id] = chunk
+            if len(plan.tickers) > 1:
+                for ticker in plan.tickers[:2]:
+                    for chunk in self._search(vector, {"ticker": ticker, "source_type": source_type}):
+                        retrieved[chunk.chunk_id] = chunk
 
         # Live-ingest only the empty (ticker, source_type) combos, bounded.
         ingested_keys = list(state.get("ingested_keys", []))
@@ -286,6 +290,8 @@ class FetchAgent:
                 stats = self._ingest(adapter, source_type, ticker, plan, unavailable)
                 if stats:
                     for chunk in self._search(vector, {**filters_base, "source_type": source_type}):
+                        retrieved[chunk.chunk_id] = chunk
+                    for chunk in self._search(vector, {"ticker": ticker, "source_type": source_type}):
                         retrieved[chunk.chunk_id] = chunk
 
         ordered = sorted(retrieved.values(), key=lambda c: (-c.score, c.chunk_id))
@@ -338,7 +344,11 @@ class FetchAgent:
         if self.pipeline is None:
             unavailable.append(f"{adapter.name}: live ingestion not wired")
             return False
-        params: dict = {"ticker": ticker, "limit": 5 if source_type == "news" else 2}
+        params: dict = {
+            "ticker": ticker,
+            "limit": 5 if source_type == "news" else 1,
+            "filing_type": "10-K",
+        }
         if plan.date_range:
             params["date_range"] = list(plan.date_range)
         try:

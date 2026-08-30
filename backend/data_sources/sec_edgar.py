@@ -283,7 +283,7 @@ class SecEdgarAdapter(DataSourceAdapter):
         params = dict(query_params)
         ticker = params.get("ticker")
         query = params.get("query")
-        filing_type = params.get("filing_type")
+        filing_type = params.get("filing_type") or "10-K"
         start, end = _normalize_date_range(params.get("date_range"))
         limit = int(params.get("limit", 10))
         if not ticker and not query:
