@@ -101,9 +101,9 @@ class Settings(BaseSettings):
 
     # Query path (Phase 2)
     enable_llm_query_rewrite: bool = False
-    rag_top_k: int = 24
-    rag_excerpt_chars: int = 4500
-    rag_context_char_budget: int = 36000
+    rag_top_k: int = 12
+    rag_excerpt_chars: int = 2000
+    rag_context_char_budget: int = 14000
     api_max_question_chars: int = 4000
 
     # Vector store
