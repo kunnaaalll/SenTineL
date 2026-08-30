@@ -54,11 +54,11 @@ export function AgentTraceViewer({ agentPath, traceUrl }: AgentTraceViewerProps)
       </summary>
 
       <div className="border-t border-line px-3 py-3">
-        <ol className="m-0 flex flex-wrap items-center gap-x-1.5 gap-y-1.5 p-0 pl-1 list-none">
+        <ol className="m-0 flex flex-wrap items-center gap-x-1 gap-y-1.5 p-0 pl-1 list-none">
           {agentPath.map((step, i) => (
-            <li key={`${step}-${i}`} className="flex items-center gap-1.5">
+            <li key={`${step}-${i}`} className="flex items-center gap-1">
               {i > 0 && (
-                <svg viewBox="0 0 16 16" aria-hidden className="h-3 w-3 text-line-strong">
+                <svg viewBox="0 0 16 16" aria-hidden className="h-3 w-3 text-accent/40">
                   <path
                     d="m5 3 5 5-5 5"
                     stroke="currentColor"
@@ -69,7 +69,7 @@ export function AgentTraceViewer({ agentPath, traceUrl }: AgentTraceViewerProps)
                   />
                 </svg>
               )}
-              <span className="rounded-full border border-line-strong bg-surface px-2 py-0.5 text-xs text-ink">
+              <span className="rounded-full border border-accent/30 bg-accent-soft px-2 py-0.5 text-[11px] font-medium text-accent">
                 {stepLabel(step)}
               </span>
             </li>

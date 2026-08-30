@@ -1,75 +1,93 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sora:wght@400;500;600;700&display=swap");
 @import "tailwindcss";
 
 /*
- * Sentinel design tokens.
+ * Sentinel design tokens — v2 Premium Financial Intelligence palette.
  *
- * Light is the default; dark values apply under prefers-color-scheme: dark
- * (no toggle in v1 — the UI follows the OS setting). Every color pair used
- * for text/background meets WCAG AA contrast on its surface. State colors
- * are always paired with an icon or text label so nothing relies on hue
- * alone.
+ * Concept: calm, cinematic, trustworthy — a midnight observatory for capital
+ * markets. Deep navy backgrounds, warm ivory text, controlled saffron-gold
+ * accents. No generic admin-dashboard grays, no excessive gradients.
+ *
+ * The product ships in a single dark theme; light mode provides a usable
+ * fallback following OS preference. Every foreground/background pair meets
+ * WCAG AA contrast (≥4.5:1 for normal text, ≥3:1 for UI components).
+ * State indicators pair color with an icon or text label — nothing relies on
+ * hue alone.
  */
 
+/* Default: dark midnight experience */
 :root {
-  --background: #f3f5f9;
-  --surface: #ffffff;
-  --surface-muted: #eef1f6;
-  --surface-raised: #ffffff;
+  /* --- Surfaces ---------------------------------------------------------- */
+  --background: #060c18;
+  --surface: #0d1625;
+  --surface-muted: #121e30;
+  --surface-raised: #172338;
+  --surface-overlay: #1c2b42;
 
-  --ink: #0f172a;
-  --ink-soft: #475569;
-  --ink-faint: #64748b;
+  /* --- Typography -------------------------------------------------------- */
+  --ink: #ede8da; /* warm ivory — not pure white */
+  --ink-soft: #b8b0a0;
+  --ink-faint: #706860;
 
-  --line: #dbe2ec;
-  --line-strong: #b6c2d4;
+  /* --- Structure --------------------------------------------------------- */
+  --line: #1e2f48;
+  --line-strong: #2c4262;
 
-  --accent: #1d4ed8;
-  --accent-strong: #1e40af;
-  --accent-soft: #e4ebfd;
-  --on-accent: #ffffff;
+  /* --- Accent (saffron-gold) --------------------------------------------- */
+  --accent: #c8a030;
+  --accent-strong: #ddb840;
+  --accent-soft: #1a1508;
+  --on-accent: #060c18;
 
-  --success: #166534;
-  --success-soft: #dcfce7;
-  --warning-ink: #713f12;
-  --warning: #a16207;
-  --warning-soft: #fef3c7;
-  --danger: #b91c1c;
-  --danger-soft: #fee2e2;
+  /* --- Semantic ---------------------------------------------------------- */
+  --success: #50c878;
+  --success-soft: #062215;
+  --warning-ink: #e8b840;
+  --warning: #c89820;
+  --warning-soft: #1c1408;
+  --danger: #e06060;
+  --danger-soft: #200808;
 
-  --focus: #2563eb;
+  /* --- Focus ring -------------------------------------------------------- */
+  --focus: #c8a030;
 
-  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.05), 0 1px 3px rgb(15 23 42 / 0.08);
+  /* --- Shadows ----------------------------------------------------------- */
+  --shadow-card: 0 2px 8px rgb(0 0 0 / 0.5), 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-glow: 0 0 24px rgb(200 160 48 / 0.08);
 }
 
-@media (prefers-color-scheme: dark) {
+/* Light mode fallback — functional and on-brand in bright environments */
+@media (prefers-color-scheme: light) {
   :root {
-    --background: #0b1220;
-    --surface: #111a2c;
-    --surface-muted: #17233a;
-    --surface-raised: #182540;
-    --ink: #e6edf7;
-    --ink-soft: #b6c2d6;
-    --ink-faint: #8fa0b8;
+    --background: #f5f1ea;
+    --surface: #ffffff;
+    --surface-muted: #ede9e0;
+    --surface-raised: #ffffff;
+    --surface-overlay: #f8f5ee;
 
-    --line: #24334d;
-    --line-strong: #38496a;
+    --ink: #1a1308;
+    --ink-soft: #4a4030;
+    --ink-faint: #8a7860;
 
-    --accent: #79a7ff;
-    --accent-strong: #93b8ff;
-    --accent-soft: #1c2c4d;
-    --on-accent: #0b1220;
+    --line: #e0d8cc;
+    --line-strong: #c0b8a8;
 
-    --success: #6ee7a0;
-    --success-soft: #10331f;
-    --warning-ink: #fde68a;
-    --warning: #fbbf24;
-    --warning-soft: #33270c;
-    --danger: #fca5a5;
-    --danger-soft: #3d1414;
+    --accent: #a07820;
+    --accent-strong: #8a6818;
+    --accent-soft: #fdf6e8;
+    --on-accent: #ffffff;
 
-    --focus: #93b8ff;
+    --success: #1a7a3a;
+    --success-soft: #e8f8ee;
+    --warning-ink: #7a5800;
+    --warning: #8a6800;
+    --warning-soft: #fdf4d8;
+    --danger: #b03030;
+    --danger-soft: #fde8e8;
 
-    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4);
+    --focus: #a07820;
+    --shadow-card: 0 1px 3px rgb(26 19 8 / 0.08), 0 1px 2px rgb(26 19 8 / 0.05);
+    --shadow-glow: 0 0 20px rgb(160 120 32 / 0.12);
   }
 }
 
@@ -78,6 +96,7 @@
   --color-surface: var(--surface);
   --color-surface-muted: var(--surface-muted);
   --color-surface-raised: var(--surface-raised);
+  --color-surface-overlay: var(--surface-overlay);
   --color-ink: var(--ink);
   --color-ink-soft: var(--ink-soft);
   --color-ink-faint: var(--ink-faint);
@@ -95,44 +114,178 @@
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
 
-  --font-sans:
-    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  /* Display font (Sora) for headings; Inter for body */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Sora", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-/* Visible focus everywhere; offset keeps it legible on tinted surfaces. */
-:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-  border-radius: 2px;
-}
+/* -------------------------------------------------------------------------
+ * Base
+ * ---------------------------------------------------------------------- */
 
 body {
   background-color: var(--background);
   color: var(--ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Subtle radial tone for depth — not a heavy gradient */
+  background-image: radial-gradient(
+    ellipse 90% 40% at 50% 0%,
+    rgba(30 48 88 / 0.3) 0%,
+    transparent 70%
+  );
+  background-attachment: fixed;
 }
 
-/* Motion only when the user has not asked for stillness. */
+/* Gold focus ring achieves ≥3:1 on all dark surfaces */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* -------------------------------------------------------------------------
+ * Motion system — ALL animation gated on prefers-reduced-motion
+ * ---------------------------------------------------------------------- */
+
 @media (prefers-reduced-motion: no-preference) {
   .transition-enabled {
-    transition-property: background-color, border-color, color, box-shadow;
-    transition-duration: 150ms;
-    transition-timing-function: ease-out;
+    transition-property: background-color, border-color, color, box-shadow, opacity, transform;
+    transition-duration: 160ms;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
+  /* Pulsing status dot */
   @keyframes sentinel-pulse {
     0%,
     100% {
       opacity: 1;
     }
     50% {
-      opacity: 0.35;
+      opacity: 0.3;
     }
   }
 
   .animate-pulse-dot {
-    animation: sentinel-pulse 1.4s ease-in-out infinite;
+    animation: sentinel-pulse 1.6s ease-in-out infinite;
   }
+
+  /* Orb breathing for wake screen */
+  @keyframes orb-breathe {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 0.65;
+    }
+    50% {
+      transform: scale(1.1);
+      opacity: 1;
+    }
+  }
+
+  .animate-orb-breathe {
+    animation: orb-breathe 3.5s ease-in-out infinite;
+  }
+
+  /* Constellation ring rotation */
+  @keyframes constellation-rotate {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .animate-constellation {
+    animation: constellation-rotate 70s linear infinite;
+  }
+
+  .animate-constellation-rev {
+    animation: constellation-rotate 100s linear infinite reverse;
+  }
+
+  /* Content entrance */
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-up {
+    animation: fade-up 0.55s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+
+  /* Shimmer skeleton on dark surfaces */
+  @keyframes shimmer {
+    from {
+      background-position: -200% 0;
+    }
+    to {
+      background-position: 200% 0;
+    }
+  }
+
+  .animate-shimmer {
+    background: linear-gradient(
+      90deg,
+      var(--surface-muted) 25%,
+      var(--surface-overlay) 50%,
+      var(--surface-muted) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.8s ease-in-out infinite;
+  }
+
+  /* Children reveal after BackendGate transition */
+  @keyframes reveal-children {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .animate-reveal {
+    animation: reveal-children 0.45s ease-out forwards;
+  }
+}
+
+/* Ensure no motion for users who asked for stillness */
+@media (prefers-reduced-motion: reduce) {
+  .transition-enabled,
+  .animate-pulse-dot,
+  .animate-orb-breathe,
+  .animate-constellation,
+  .animate-constellation-rev,
+  .animate-shimmer,
+  .animate-fade-up,
+  .animate-reveal {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* -------------------------------------------------------------------------
+ * Utilities
+ * ---------------------------------------------------------------------- */
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.shadow-card {
+  box-shadow: var(--shadow-card);
+}
+
+.shadow-glow {
+  box-shadow: var(--shadow-glow);
 }

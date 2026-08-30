@@ -11,8 +11,9 @@ type BackendState =
 
 /**
  * Header pill showing whether the backend can currently answer questions.
- * Polls GET /ready once on mount and then once a minute; every failure mode
- * (degraded 503, network error) renders as an explicit state — never a blank.
+ * Polls GET /ready once on mount and then once a minute. Failures render as
+ * explicit states — never a blank. BackendGate handles the wake-up screen;
+ * StatusBar is informational context only.
  */
 export function StatusBar() {
   const [state, setState] = useState<BackendState>({ kind: "loading" });
@@ -47,8 +48,9 @@ export function StatusBar() {
 
   if (state.kind === "loading") {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-xs text-ink-faint">
-        Checking backend…
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-[11px] text-ink-faint">
+        <span aria-hidden className="animate-pulse-dot h-1.5 w-1.5 rounded-full bg-ink-faint" />
+        Checking…
       </span>
     );
   }
@@ -56,22 +58,31 @@ export function StatusBar() {
   if (state.kind === "ready") {
     return (
       <span
-        className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-xs font-medium text-success"
+        className="inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent-soft px-2.5 py-1 text-[11px] font-medium text-accent"
         title="The backend is configured and can answer questions."
       >
-        <CheckIcon className="h-3.5 w-3.5" aria-hidden />
-        Backend ready
+        <span
+          aria-hidden
+          className="h-1.5 w-1.5 rounded-full bg-accent"
+          style={{ boxShadow: "0 0 4px rgba(200,160,48,0.6)" }}
+        />
+        Ready
       </span>
     );
   }
 
-  const label = state.kind === "degraded" ? "Backend degraded" : "Backend offline";
+  const label = state.kind === "degraded" ? "Degraded" : "Offline";
+  const isDegraded = state.kind === "degraded";
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-xs font-medium text-warning"
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${
+        isDegraded
+          ? "border-warning/30 bg-warning-soft text-warning-ink"
+          : "border-line bg-surface text-ink-faint"
+      }`}
       title={state.detail}
     >
-      <WarningIcon className="h-3.5 w-3.5" aria-hidden />
+      <WarningIcon className="h-3 w-3" aria-hidden />
       {label}
     </span>
   );

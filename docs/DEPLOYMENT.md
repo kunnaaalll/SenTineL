@@ -144,3 +144,65 @@ If a deployment degrades or triggers CloudWatch alarms:
    ```bash
    terraform apply -var-file=envs/staging.tfvars
    ```
+
+---
+
+## 6. Render Cold-Start Behavior & Readiness Polling Contract
+
+When deployed to hosting platforms with scale-to-zero / idle suspend characteristics (such as Render free/hobby tiers), backend spin-up typically requires 50–90 seconds.
+
+### Cold-Start Contract:
+1. **Initial Probing**: On first browser load, the frontend makes a single immediate call to `GET /api/ready`.
+2. **Immediate Passthrough**: If the backend responds with HTTP `200` (`status: "ready"`), `BackendGate` renders the application shell immediately with zero delay, animations, or splash screens.
+3. **Graceful Wake-Up Screen**: If the backend returns `502 Bad Gateway`, `503 Service Unavailable`, `504 Gateway Timeout`, connection reset, or network timeout:
+   - The UI mounts a dedicated, calm wake-up screen: *"Namaste, welcome to Sentinel. The research engine is starting. This usually takes about one minute."*
+   - Real-time elapsed time counter and progress pulse.
+   - Bounded polling initiates: begins at 2s, increases to 5s, capped strictly at 120 seconds total.
+4. **Smooth Transition**: Upon the first HTTP 200 `/api/ready` confirmation, the gate automatically transitions into the research interface.
+5. **Timeout Handling**: If 120 seconds elapse without readiness, polling halts to prevent infinite loops, displaying an actionable Retry button and a collapsible Technical Details panel.
+6. **Session-Loss Protection**: If the backend goes down during active usage, the UI displays a non-blocking degraded alert at the top without discarding loaded messages or in-memory state.
+7. **Zero Secret Leakage**: Raw backend error responses, provider credentials, and stack traces are completely masked from user-facing error states.
+
+---
+
+## 7. Local Browser-Only Chat Persistence
+
+To support user workflow continuity across page reloads without backend session stores or accounts:
+
+- **Storage Key**: `sentinel.chat.v1` in `localStorage`.
+- **Payload Structure**:
+  ```json
+  {
+    "version": 1,
+    "savedAt": "2026-08-30T10:00:00.000Z",
+    "messages": [
+      {
+        "id": "msg-1",
+        "role": "user",
+        "content": "Compare AAPL and MSFT revenue",
+        "timestamp": "2026-08-30T10:00:00.000Z"
+      },
+      {
+        "id": "msg-2",
+        "role": "assistant",
+        "content": "...",
+        "citations": [...],
+        "agentPath": ["classify", "fetch", "extract", "compare", "synthesize"],
+        "timestamp": "2026-08-30T10:00:05.000Z"
+      }
+    ]
+  }
+  ```
+- **Hydration Safety**: Stored messages are loaded in a `useEffect` hook post-mount, guaranteeing zero SSR-to-client DOM divergence or hydration mismatch errors.
+- **Bounds & Quota**: Bounded to a 50-message FIFO buffer. Quota exceptions and corrupted JSON are safely trapped and logged to console, maintaining in-memory chat functionality.
+- **In-Flight Safety**: In-flight requests are excluded from storage; only finalized questions and answers are persisted.
+- **Clear Action**: A dedicated "Clear conversation" button with an accessible modal allows instant local deletion.
+
+---
+
+## 8. Privacy & Data Boundary Limitations
+
+1. **Client-Side Isolation**: Conversation histories reside entirely within the individual browser's `localStorage`. No chat transcripts, prompts, or user history are persisted on the backend database.
+2. **Credential Exclusion**: Secrets, API keys, Authorization headers, and Langfuse tokens are never written to browser storage or exposed in frontend code.
+3. **Single-Device Scope**: Saved conversations do not sync across devices or browser profiles. Clearing browser data permanently purges saved sessions.
+

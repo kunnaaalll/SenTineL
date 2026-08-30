@@ -19,7 +19,8 @@ describe("message rendering", () => {
       />,
     );
     const userArticle = screen.getByRole("article", { name: /your question/i });
-    expect(userArticle.firstChild).toHaveClass("bg-ink");
+    // User bubble is now surface-raised (not ink) for better dark-mode contrast
+    expect(userArticle.firstChild).toHaveClass("bg-surface-raised");
     unmount();
 
     render(<MessageBubble message={completeMessage} />);
@@ -147,6 +148,7 @@ describe("evidence states", () => {
     );
     const errorArticle = screen.getByRole("article", { name: /the request failed/i });
     expect(errorArticle).toHaveTextContent(/could not reach the sentinel backend/i);
-    expect(errorArticle).toHaveTextContent(/error code: http_error/);
+    // Error code label is now 'code:' (without 'error')
+    expect(errorArticle).toHaveTextContent(/code: http_error/);
   });
 });

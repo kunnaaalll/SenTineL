@@ -94,3 +94,36 @@ export function queryResponseFixture(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
+
+// ---------------------------------------------------------------------------
+// localStorage mock helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns a mock localStorage backed by a plain object `store`.
+ * Stubs the global and returns the mock + store for inspection.
+ */
+export function stubLocalStorage(initialData: Record<string, string> = {}): {
+  store: Record<string, string>;
+  mock: typeof localStorage;
+} {
+  const store = { ...initialData };
+  const mock = {
+    getItem: vi.fn((key: string) => store[key] ?? null),
+    setItem: vi.fn((key: string, value: string) => {
+      store[key] = value;
+    }),
+    removeItem: vi.fn((key: string) => {
+      delete store[key];
+    }),
+    clear: vi.fn(() => {
+      Object.keys(store).forEach((k) => delete store[k]);
+    }),
+    get length() {
+      return Object.keys(store).length;
+    },
+    key: vi.fn((index: number) => Object.keys(store)[index] ?? null),
+  } as unknown as typeof localStorage;
+  vi.stubGlobal("localStorage", mock);
+  return { store, mock };
+}

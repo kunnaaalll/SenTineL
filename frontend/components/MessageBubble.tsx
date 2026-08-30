@@ -35,7 +35,7 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
   if (message.role === "user") {
     return (
       <article aria-label="Your question" className="flex justify-end">
-        <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-ink px-4 py-2.5 text-sm leading-relaxed text-background sm:max-w-[75%]">
+        <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-surface-raised border border-line-strong px-4 py-2.5 text-sm leading-relaxed text-ink sm:max-w-[75%]">
           {message.question}
         </div>
       </article>
@@ -46,18 +46,27 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
   if (message.status === "pending") {
     return (
       <article aria-label="Sentinel is researching your question">
-        <div className="rounded-2xl rounded-bl-md border border-line bg-surface px-4 py-3.5 shadow-card">
-          <p role="status" className="m-0 flex items-center gap-2 text-sm text-ink-faint">
+        <div
+          className="rounded-2xl rounded-bl-md border border-accent/20 bg-surface px-4 py-3.5 shadow-card"
+          style={{ borderLeftWidth: "2px", borderLeftColor: "var(--accent)" }}
+        >
+          <p role="status" className="m-0 flex items-center gap-2 text-sm text-ink-soft">
             <span
               aria-hidden
               className="animate-pulse-dot inline-block h-2 w-2 rounded-full bg-accent"
             />
             Searching SEC filings and market news…
           </p>
-          <div aria-hidden className="mt-3 space-y-2 opacity-60">
-            <div className="h-3 w-11/12 rounded bg-surface-muted" />
-            <div className="h-3 w-9/12 rounded bg-surface-muted" />
-            <div className="h-3 w-10/12 rounded bg-surface-muted" />
+          <div aria-hidden className="mt-3 space-y-2.5">
+            <div className="animate-shimmer h-3 w-11/12 rounded-full" />
+            <div
+              className="animate-shimmer h-3 w-9/12 rounded-full"
+              style={{ animationDelay: "0.2s" }}
+            />
+            <div
+              className="animate-shimmer h-3 w-10/12 rounded-full"
+              style={{ animationDelay: "0.4s" }}
+            />
           </div>
         </div>
       </article>
@@ -81,10 +90,23 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
 
   // --------------------------------------------------------------------- error
   if (message.status === "error") {
+    // Cold-start and transient errors shown as calm amber, not alarming red
+    const isColdStart =
+      message.errorCode === "backend_unavailable" ||
+      message.errorCode === "backend_timeout" ||
+      message.errorCode === "service_unavailable";
     return (
       <article aria-label="The request failed">
-        <div className="rounded-2xl rounded-bl-md border border-danger/30 bg-danger-soft px-4 py-3">
-          <p className="m-0 flex items-start gap-2 text-sm font-medium text-danger">
+        <div
+          className={`rounded-2xl rounded-bl-md border px-4 py-3 ${
+            isColdStart
+              ? "border-warning/30 bg-warning-soft"
+              : "border-line-strong bg-surface-muted"
+          }`}
+        >
+          <p
+            className={`m-0 flex items-start gap-2 text-sm font-medium ${isColdStart ? "text-warning-ink" : "text-ink-soft"}`}
+          >
             <svg viewBox="0 0 16 16" aria-hidden className="mt-0.5 h-4 w-4 shrink-0">
               <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.5" fill="none" />
               <path d="M8 4.8v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -93,8 +115,8 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
             {message.errorMessage}
           </p>
           {message.errorCode && message.errorCode !== "unknown_error" && (
-            <p className="mb-0 mt-2 font-mono text-xs text-danger/80">
-              error code: {message.errorCode}
+            <p className="mb-0 mt-2 font-mono text-[11px] text-ink-faint">
+              code: {message.errorCode}
             </p>
           )}
         </div>
@@ -121,7 +143,11 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
 
   return (
     <article aria-label="Answer from Sentinel" className="space-y-3">
-      <div className="rounded-2xl rounded-bl-md border border-line bg-surface px-4 py-3.5 shadow-card">
+      {/* Gold left-border accent on assistant messages */}
+      <div
+        className="rounded-2xl rounded-bl-md border border-line bg-surface px-4 py-3.5 shadow-card"
+        style={{ borderLeftWidth: "2px", borderLeftColor: "var(--accent)" }}
+      >
         {main.trim().length > 0 ? (
           <AnswerMarkdown text={main} citations={citations} onMarkerClick={expandFromMarker} />
         ) : null}

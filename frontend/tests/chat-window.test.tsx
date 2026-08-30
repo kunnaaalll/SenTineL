@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ChatWindow } from "@/components/ChatWindow";
 import {
@@ -8,16 +8,30 @@ import {
   jsonResponse,
   queryResponseFixture,
   stubFetch,
+  stubLocalStorage,
 } from "./helpers";
+import { STORAGE_KEY, SCHEMA_VERSION } from "@/lib/persistence";
+
+// Provide a BackendContext with ready status so tests don't need BackendGate fetch
+function ChatWindowWrapper() {
+  return <ChatWindow />;
+}
 
 function announcerText(container: HTMLElement): string {
   return container.querySelector<HTMLElement>(".sr-only")?.textContent ?? "";
 }
 
 describe("empty state", () => {
+  beforeEach(() => {
+    stubLocalStorage();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("offers example research questions that load into the input", async () => {
     const user = userEvent.setup();
-    const { container } = render(<ChatWindow />);
+    const { container } = render(<ChatWindowWrapper />);
 
     expect(screen.getByRole("heading", { name: /ask a research question/i })).toBeInTheDocument();
     const examples = screen.getAllByRole("button", { name: /apple|compare|tesla|nvidia/i });
@@ -31,16 +45,23 @@ describe("empty state", () => {
   });
 
   it("keeps the submit button disabled while the input is empty", () => {
-    render(<ChatWindow />);
+    render(<ChatWindowWrapper />);
     expect(screen.getByRole("button", { name: /ask sentinel/i })).toBeDisabled();
   });
 });
 
 describe("query submission", () => {
+  beforeEach(() => {
+    stubLocalStorage();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("posts the question to /query and renders the cited answer", async () => {
     const user = userEvent.setup();
     const calls = stubFetch(() => jsonResponse(queryResponseFixture()));
-    render(<ChatWindow />);
+    render(<ChatWindowWrapper />);
 
     await user.type(
       screen.getByRole("textbox", { name: /your question/i }),
@@ -66,7 +87,7 @@ describe("query submission", () => {
   it("submits on Enter without a modifier and inserts a newline on Shift+Enter", async () => {
     const user = userEvent.setup();
     const calls = stubFetch(() => jsonResponse(queryResponseFixture()));
-    render(<ChatWindow />);
+    render(<ChatWindowWrapper />);
 
     const input = screen.getByRole("textbox", { name: /your question/i });
     await user.type(input, "First question");
@@ -88,7 +109,7 @@ describe("query submission", () => {
         queryResponseFixture({ agent_path: ["classify", "fetch", "extract", "synthesize"] }),
       ),
     );
-    render(<ChatWindow />);
+    render(<ChatWindowWrapper />);
 
     await user.click(screen.getByRole("checkbox", { name: /force multi-agent analysis/i }));
     await user.type(
@@ -104,7 +125,7 @@ describe("query submission", () => {
   it("rejects whitespace-only questions without any request", async () => {
     const user = userEvent.setup();
     const calls = stubFetch(() => jsonResponse(queryResponseFixture()));
-    render(<ChatWindow />);
+    render(<ChatWindowWrapper />);
 
     await user.type(screen.getByRole("textbox", { name: /your question/i }), "   ");
     expect(screen.getByRole("button", { name: /ask sentinel/i })).toBeDisabled();
@@ -113,6 +134,13 @@ describe("query submission", () => {
 });
 
 describe("loading and cancellation", () => {
+  beforeEach(() => {
+    stubLocalStorage();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("shows a pending indicator while waiting and swaps in the answer", async () => {
     const user = userEvent.setup();
     let resolveFetch!: (response: Response) => void;
@@ -122,7 +150,7 @@ describe("loading and cancellation", () => {
           resolveFetch = resolve;
         }),
     );
-    render(<ChatWindow />);
+    render(<ChatWindowWrapper />);
 
     await user.type(
       screen.getByRole("textbox", { name: /your question/i }),
@@ -145,7 +173,7 @@ describe("loading and cancellation", () => {
   it("marks the exchange canceled when the user presses Cancel mid-flight", async () => {
     const user = userEvent.setup();
     stubFetch(fetchThatHonorsAbort());
-    render(<ChatWindow />);
+    render(<ChatWindowWrapper />);
 
     await user.type(screen.getByRole("textbox", { name: /your question/i }), "Cancel me");
     await user.click(screen.getByRole("button", { name: /ask sentinel/i }));
@@ -157,7 +185,7 @@ describe("loading and cancellation", () => {
   it("cancels the in-flight request when Escape is pressed in the input", async () => {
     const user = userEvent.setup();
     stubFetch(fetchThatHonorsAbort());
-    render(<ChatWindow />);
+    render(<ChatWindowWrapper />);
 
     await user.type(screen.getByRole("textbox", { name: /your question/i }), "Escape cancels");
     await user.click(screen.getByRole("button", { name: /ask sentinel/i }));
@@ -170,7 +198,7 @@ describe("loading and cancellation", () => {
 
   it("announces progress and completion through the live region", async () => {
     const user = userEvent.setup();
-    const { container } = render(<ChatWindow />);
+    const { container } = render(<ChatWindowWrapper />);
     let resolveFetch!: (response: Response) => void;
     stubFetch(
       () =>
@@ -192,14 +220,15 @@ describe("loading and cancellation", () => {
     const user = userEvent.setup();
     stubFetch(() => errorEnvelope(503, "no_embedding_provider", "No embedding provider."));
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-    render(<ChatWindow />);
+    render(<ChatWindowWrapper />);
 
     await user.type(screen.getByRole("textbox", { name: /your question/i }), "Why did this fail?");
     await user.click(screen.getByRole("button", { name: /ask sentinel/i }));
 
     const errorArticle = await screen.findByRole("article", { name: /the request failed/i });
     expect(errorArticle).toHaveTextContent(/no embedding provider is configured/i);
-    expect(errorArticle).toHaveTextContent(/error code: no_embedding_provider/);
+    // Note: error code label changed to "code:" (without "error")
+    expect(errorArticle).toHaveTextContent(/code: no_embedding_provider/);
     consoleError.mockRestore();
   });
 
@@ -208,7 +237,7 @@ describe("loading and cancellation", () => {
     stubFetch(() => {
       throw new TypeError("fetch failed");
     });
-    render(<ChatWindow />);
+    render(<ChatWindowWrapper />);
 
     await user.type(screen.getByRole("textbox", { name: /your question/i }), "Is anyone there?");
     await user.click(screen.getByRole("button", { name: /ask sentinel/i }));
@@ -217,5 +246,93 @@ describe("loading and cancellation", () => {
     // Distinct from backend-envelope errors: this is the transport-level state.
     expect(errorArticle).toHaveTextContent(/could not reach the sentinel backend/i);
     expect(errorArticle).not.toHaveTextContent(/error code:/i);
+  });
+});
+
+describe("persistence — save and restore", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("shows 'Saved on this device' after a completed answer", async () => {
+    const user = userEvent.setup();
+    const { store } = stubLocalStorage();
+    stubFetch(() => jsonResponse(queryResponseFixture()));
+    render(<ChatWindowWrapper />);
+
+    await user.type(
+      screen.getByRole("textbox", { name: /your question/i }),
+      "What is AAPL revenue?",
+    );
+    await user.click(screen.getByRole("button", { name: /ask sentinel/i }));
+
+    await screen.findByRole("article", { name: /answer from sentinel/i });
+
+    await waitFor(() => {
+      expect(screen.getByText(/saved on this device/i)).toBeInTheDocument();
+    });
+    expect(store[STORAGE_KEY]).toBeTruthy();
+  });
+
+  it("restores saved messages on mount", async () => {
+    // Pre-populate storage with a completed exchange
+    const savedMessages = [
+      {
+        id: "u1",
+        role: "user",
+        question: "Restored question",
+        status: "complete",
+        savedAt: new Date().toISOString(),
+      },
+      {
+        id: "a1",
+        role: "assistant",
+        question: "Restored question",
+        status: "complete",
+        answer: "Restored answer [1].",
+        citations: [],
+        savedAt: new Date().toISOString(),
+      },
+    ];
+    stubLocalStorage({
+      [STORAGE_KEY]: JSON.stringify({
+        version: SCHEMA_VERSION,
+        savedAt: new Date().toISOString(),
+        messages: savedMessages,
+      }),
+    });
+
+    render(<ChatWindowWrapper />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("article", { name: /your question/i })).toHaveTextContent(
+        "Restored question",
+      );
+    });
+    expect(screen.getByRole("article", { name: /answer from sentinel/i })).toBeInTheDocument();
+  });
+
+  it("clears conversation and removes saved messages", async () => {
+    const user = userEvent.setup();
+    const { store } = stubLocalStorage();
+    stubFetch(() => jsonResponse(queryResponseFixture()));
+    render(<ChatWindowWrapper />);
+
+    // Post a question
+    await user.type(screen.getByRole("textbox", { name: /your question/i }), "Clear me");
+    await user.click(screen.getByRole("button", { name: /ask sentinel/i }));
+    await screen.findByRole("article", { name: /answer from sentinel/i });
+
+    // Click clear → confirm
+    await user.click(screen.getByRole("button", { name: /clear conversation history/i }));
+    await user.click(screen.getByRole("button", { name: /confirm clear/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /ask a research question/i })).toBeInTheDocument();
+    });
+    expect(store[STORAGE_KEY]).toBeUndefined();
   });
 });

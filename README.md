@@ -10,13 +10,16 @@ Latest milestone: Complete production-quality Next.js frontend milestone impleme
 
 Implemented:
 
-- **Frontend UI (`frontend/`)** — Next.js App Router (`/` and `/sources`), Tailwind CSS with dark mode and `prefers-reduced-motion` support, full keyboard navigation (WCAG AA compliant).
-  - `ChatWindow` — local conversational state, example queries, in-flight cancellation via Escape/button, loading skeletons, aria-live status announcements.
+- **Frontend UI (`frontend/`)** — Next.js App Router (`/` and `/sources`), Tailwind CSS with dark mode, cinematic midnight/saffron design system, and `prefers-reduced-motion` support, full keyboard navigation (WCAG AA compliant).
+  - `BackendGate` — conditional Render cold-start wake-up experience ("Namaste, welcome to Sentinel") with bounded 120s readiness polling, live progress timer, friendly timeout retry, and non-destructive session degradation.
+  - `ChatWindow` — local conversational state, example queries, in-flight cancellation via Escape/button, loading skeletons, aria-live status announcements, and accessible clear-conversation modal.
   - `MessageBubble` — markdown-safe answer rendering with GFM tables, inline interactive `[n]` citation markers, structured `Limitations:` caveat panels, explicit insufficient-evidence refusals.
   - `CitationCard` — expandable evidence cards detailing source title, excerpt, filing date, match score, section, and public EDGAR/news URLs.
   - `AgentTraceViewer` — collapsible multi-agent execution pipeline display (`classify → fetch → extract → compare → synthesize`) with Langfuse trace links.
   - `SourceUploadPanel` — SEC filing and market news ingestion forms with client-side validation, progress indicators, and detailed indexed chunk summaries.
-  - `StatusBar` — live backend readiness pill polling `/ready` with degraded/offline state handling.
+  - `StatusBar` — live backend readiness indicator polling `/ready` with degraded/offline state handling and "Saved on this device" local storage indicator.
+  - `lib/persistence.ts` — hydration-safe browser-only chat persistence under `sentinel.chat.v1` with quota handling, corruption recovery, and secret exclusion.
+  - `lib/readiness.ts` — bounded exponential-backoff polling state machine for backend cold-start detection.
   - `lib/api.ts` — typed client for all backend endpoints (`/query`, `/agents/query`, `/ingest`, `/sources`, `/providers`, `/health`, `/ready`) supporting timeouts, AbortSignal cancellation, safe error normalization, and runtime reverse-proxy routing via `BACKEND_ORIGIN`.
 - **Frontend Containerization (`infra/Dockerfile.frontend`)** — Multi-stage standalone Next.js image running unprivileged (`USER node`, UID 1000), `/health` liveness probe.
 - **Docker Compose Stack (`infra/docker-compose.yml`)** — Standalone dual-service stack (`sentinel-backend` + `sentinel-frontend`) attached to bridge network with loopback bindings (ports 8000 and 3000).
@@ -220,6 +223,38 @@ sentinel/
 ├── docs/                     # API.md, ARCHITECTURE.md, DEPLOYMENT.md, AGENT_DESIGN.md
 └── Makefile
 ```
+
+## Backend Readiness & Render Cold-Start Behavior
+
+When hosted on containerized free-tier or serverless platforms such as Render, cold-starting backend instances take 50–90 seconds while spinning up. During this startup window, reverse proxies return `502 Bad Gateway`, `503 Service Unavailable`, `504 Gateway Timeout`, or drop connections.
+
+Sentinel handles this through a non-blocking conditional gate (`BackendGate`):
+1. **Silent Instant Passthrough**: On initial load, Sentinel immediately queries `/api/ready`. If the backend is healthy (`200 OK`), the full application interface renders instantly without splash screens or countdowns.
+2. **Conditional Wake-Up Experience**: If the backend returns an error or times out, the user is greeted with a dedicated, cinematic welcome experience:
+   - *"Namaste, welcome to Sentinel."*
+   - *"The research engine is starting. This usually takes about one minute."*
+   - Real-time elapsed timer and dynamic visual pulse indicator.
+3. **Safe Bounded Polling**: Polls `/api/ready` with progressive backoff (2s → 5s interval, capped at 120s total).
+4. **Graceful Timeout & Retry**: If 120 seconds elapse without backend response, the screen shifts to a calm retry prompt with an expandable technical diagnostics panel.
+5. **Zero Leaks**: Stack traces, provider keys, raw backend payloads, and secret-bearing URLs are strictly scrubbed from user-facing states.
+6. **Non-Destructive Session Degradation**: If the backend becomes unavailable *during* an active session, an unobtrusive degraded banner appears; existing conversation history and citations are never wiped.
+
+## Local Browser Chat Persistence
+
+Sentinel provides client-side conversation persistence without requiring accounts or cloud databases:
+- **Versioned Key**: Saved under `sentinel.chat.v1` in `localStorage`.
+- **Persisted Elements**: User questions, synthesized assistant responses, inline citations, agent execution paths, timestamps, and safe error states.
+- **Hydration Safe**: State restoration is strictly deferred until client mount, preventing Next.js SSR hydration mismatches.
+- **Bounded Capacity**: Fixed FIFO cap of 50 messages to prevent browser storage exhaustion.
+- **Resilience**: Corrupted JSON, storage quota exceptions, and restricted storage (private browsing) are caught gracefully, falling back to memory-only state without crashing.
+- **Clear Conversation**: Dedicated action with confirmation modal allows users to wipe local history at any time.
+- **"Saved on this device"**: Subtle status indicator confirms local persistence status.
+
+## Privacy & Security Limitations
+
+- **No Remote User Data Persistence**: Chat conversations remain strictly on the user's browser device. No query history or user session cookies are written to the backend database.
+- **Secret Hygiene**: Frontend storage excludes API keys, Authorization headers, Langfuse tokens, raw provider payloads, or sensitive environment configurations.
+- **Browser-Scoped**: Clearing browser cookies/storage or switching devices/profiles starts a fresh conversation session.
 
 ## Known limitations
 

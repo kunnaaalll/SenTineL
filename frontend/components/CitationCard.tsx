@@ -18,7 +18,7 @@ export function sourceTypeLabel(citation: Citation): string {
 export function citationSection(citation: Citation): string | null {
   if (citation.section) return citation.section;
   const match = /^\[([^\]]+)\]/.exec(citation.excerpt || "");
-  return match ? match[1] : null;
+  return match?.[1] ?? null;
 }
 
 export function citationDate(citation: Citation): string | null {
@@ -70,7 +70,8 @@ export function CitationCard({
         >
           <span
             aria-hidden
-            className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded border border-line bg-accent-soft px-1 font-mono text-[11px] font-semibold text-accent"
+            className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded border border-accent/40 bg-accent-soft px-1 font-mono text-[11px] font-semibold text-accent"
+            style={{ boxShadow: "0 0 4px rgba(200,160,48,0.15)" }}
           >
             {index + 1}
           </span>
@@ -109,6 +110,7 @@ export function CitationCard({
           role="region"
           aria-labelledby={buttonId}
           className="border-t border-line px-3 py-3"
+          style={{ borderLeftWidth: "2px", borderLeftColor: "var(--accent)" }}
         >
           <p className="m-0 mb-2.5 text-sm leading-relaxed text-ink-soft">
             {citation.excerpt || "No excerpt available."}
