@@ -159,15 +159,18 @@ class RagChain:
         path.append("embed")
 
         # 3. Retrieve with metadata filters.
-        fetch_k = max(k * 2, 24)
+        fetch_k = max(k * 5, 80)
         with trace.span("retrieve", top_k=fetch_k, filters=str(merged_filters)):
             raw_chunks = self.store.search(vector, top_k=fetch_k, filters=merged_filters)
 
+        _footer_re = re.compile(r"Form\s+10-[KQ]\s*\|\s*\d+", re.IGNORECASE)
+        _toc_re = re.compile(r"\|\s*Item\s+\d+.*\|\s*\d+\s*\|", re.IGNORECASE)
+
         def _is_unhelpful(chunk: RetrievedChunk) -> bool:
             t = chunk.text.strip()
-            if len(t) < 220:
+            if _footer_re.search(t) and len(t) < 120:
                 return True
-            if bool(re.search(r"\|\s*Item\s+\d+.*\|\s*\d+\s*\|", t)) and len(t) < 600:
+            if _toc_re.search(t) and len(t) < 600:
                 return True
             return False
 

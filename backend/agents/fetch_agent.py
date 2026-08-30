@@ -311,16 +311,15 @@ class FetchAgent:
     def _search(self, vector: list[float], filters: dict) -> list[RetrievedChunk]:
         try:
             raw = self.store.search(
-                vector, top_k=max(self.top_k_per_search * 2, 16), filters=filters
+                vector, top_k=max(self.top_k_per_search * 5, 48), filters=filters
             )
+            _footer_re = re.compile(r"Form\s+10-[KQ]\s*\|\s*\d+", re.IGNORECASE)
+            _toc_re = re.compile(r"\|\s*Item\s+\d+.*\|\s*\d+\s*\|", re.IGNORECASE)
             substantive = [
                 c
                 for c in raw
-                if len(c.text.strip()) >= 220
-                and not (
-                    bool(re.search(r"\|\s*Item\s+\d+.*\|\s*\d+\s*\|", c.text))
-                    and len(c.text) < 600
-                )
+                if not (_footer_re.search(c.text) and len(c.text.strip()) < 120)
+                and not (_toc_re.search(c.text) and len(c.text.strip()) < 600)
             ]
             return (substantive if substantive else raw)[: self.top_k_per_search]
         except Exception as exc:  # noqa: BLE001 — a broken store must not kill the node
