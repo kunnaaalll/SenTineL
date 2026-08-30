@@ -165,38 +165,52 @@ When deployed to hosting platforms with scale-to-zero / idle suspend characteris
 
 ---
 
-## 7. Local Browser-Only Chat Persistence
-
-To support user workflow continuity across page reloads without backend session stores or accounts:
-
-- **Storage Key**: `sentinel.chat.v1` in `localStorage`.
-- **Payload Structure**:
+## 7. Local Browser-Only Multi-Session Chat Persistence
+ 
+To support user workflow continuity and multi-topic research without backend session databases or accounts:
+ 
+- **Storage Key**: `sentinel:conversations` in `localStorage` (automatically migrates from legacy `sentinel.chat.v1`).
+- **Payload Schema (`version: 1`)**:
   ```json
   {
     "version": 1,
-    "savedAt": "2026-08-30T10:00:00.000Z",
-    "messages": [
+    "updatedAt": "2026-08-30T12:00:00.000Z",
+    "conversations": [
       {
-        "id": "msg-1",
-        "role": "user",
-        "content": "Compare AAPL and MSFT revenue",
-        "timestamp": "2026-08-30T10:00:00.000Z"
-      },
-      {
-        "id": "msg-2",
-        "role": "assistant",
-        "content": "...",
-        "citations": [...],
-        "agentPath": ["classify", "fetch", "extract", "compare", "synthesize"],
-        "timestamp": "2026-08-30T10:00:05.000Z"
+        "id": "conv-1725000000000-a1b2c3d4",
+        "title": "Apple FY24 Revenue & Segment Margin",
+        "titleIsCustom": false,
+        "createdAt": "2026-08-30T10:00:00.000Z",
+        "updatedAt": "2026-08-30T10:05:00.000Z",
+        "messages": [
+          {
+            "id": "msg-1",
+            "role": "user",
+            "question": "What was Apple revenue for FY2024?",
+            "status": "complete",
+            "savedAt": "2026-08-30T10:00:00.000Z"
+          },
+          {
+            "id": "msg-2",
+            "role": "assistant",
+            "question": "What was Apple revenue for FY2024?",
+            "status": "complete",
+            "answer": "Apple reported total net sales of $391.0B in FY2024 [1].",
+            "citations": [...],
+            "agentPath": ["classify", "fetch", "extract", "compare", "synthesize"],
+            "savedAt": "2026-08-30T10:00:05.000Z"
+          }
+        ]
       }
     ]
   }
   ```
-- **Hydration Safety**: Stored messages are loaded in a `useEffect` hook post-mount, guaranteeing zero SSR-to-client DOM divergence or hydration mismatch errors.
-- **Bounds & Quota**: Bounded to a 50-message FIFO buffer. Quota exceptions and corrupted JSON are safely trapped and logged to console, maintaining in-memory chat functionality.
-- **In-Flight Safety**: In-flight requests are excluded from storage; only finalized questions and answers are persisted.
-- **Clear Action**: A dedicated "Clear conversation" button with an accessible modal allows instant local deletion.
+- **Automatic Title Generation**: Derived from the user's first query with whitespace normalization and clean word-boundary truncation (up to 48 chars).
+- **Chronological Grouping**: Binned dynamically into Today, Yesterday, Previous 7 days, and Older.
+- **Hydration Safety**: Loaded in a client-side `useEffect` hook post-mount, guaranteeing zero SSR hydration mismatch errors.
+- **Bounds & Quota**: Bounded to 50 conversations and 100 messages per session. Storage exceptions are trapped with non-blocking feedback, retaining in-memory state.
+- **In-Flight Safety**: In-flight turns (`status: "pending"`) and credentials are never persisted to storage.
+- **Full CRUD Actions**: New chat, switch chat, inline rename (with `titleIsCustom: true`), and inline delete confirmation without browser alert prompts.
 
 ---
 

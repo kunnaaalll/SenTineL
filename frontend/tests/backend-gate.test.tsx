@@ -349,4 +349,22 @@ describe("BackendGate", () => {
     expect(body).not.toMatch(/LANGFUSE_SECRET/);
     expect(body).not.toMatch(/sk-/);
   });
+
+  it("does not use glowing orbs, spheres, constellations, or abstract blobs", async () => {
+    stubFetch(() => gateway502());
+
+    const { container } = render(
+      <BackendGate>
+        <p>hidden</p>
+      </BackendGate>,
+    );
+
+    await waitFor(() => screen.getByText(/Namaste/i));
+
+    const html = container.innerHTML;
+    expect(html).not.toMatch(/animate-orb-breathe/);
+    expect(html).not.toMatch(/animate-constellation/);
+    expect(html).not.toMatch(/ConstellationBackground/);
+    expect(html).not.toMatch(/aurora-field/);
+  });
 });

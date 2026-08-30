@@ -13,7 +13,7 @@ export interface SentinelLogoProps extends React.SVGProps<SVGSVGElement> {
   showSubtitle?: boolean;
 }
 
-const SIZE_MAP = {
+const SIZE_MAP: Record<string, number> = {
   sm: 20,
   md: 28,
   lg: 36,
@@ -21,11 +21,13 @@ const SIZE_MAP = {
 };
 
 /**
- * SentinelBrandLogo — Code-native accessible SVG branding for Sentinel.
+ * SentinelLogo — Code-native accessible flat geometric SVG branding for Sentinel.
  *
- * Design Motif: "The Vigilant Aperture" — A precision optical radar signal
- * combining an inner focal point, cardinal calibration nodes, and dual
- * concentric scanning arcs representing continuous vigilance over financial filings.
+ * Motif: The Geometric S-Sentinel Mark.
+ * Crisp, flat, architectural precision combining an interlocking geometric 'S'
+ * structure with calibrated sentinel alignment nodes.
+ *
+ * Prohibited: Glowing balls, spheres, orbs, constellations, blobs, neon, glassmorphism.
  */
 export function SentinelLogo({
   variant = "symbol",
@@ -37,7 +39,6 @@ export function SentinelLogo({
 }: SentinelLogoProps) {
   const pixelSize = typeof size === "number" ? size : (SIZE_MAP[size] ?? 28);
 
-  // Resolve color tokens based on theme
   const getColors = () => {
     switch (theme) {
       case "monochrome":
@@ -45,21 +46,18 @@ export function SentinelLogo({
           primary: "currentColor",
           accent: "currentColor",
           muted: "currentColor",
-          background: "transparent",
         };
       case "light":
         return {
           primary: "#1A1816",
           accent: "#C25E3E",
           muted: "#7C756D",
-          background: "#FAF7F2",
         };
       case "dark":
         return {
           primary: "#F5F2ED",
           accent: "#D97352",
           muted: "#A8A096",
-          background: "#1E1C1A",
         };
       case "default":
       default:
@@ -67,201 +65,71 @@ export function SentinelLogo({
           primary: "var(--ink, #1A1816)",
           accent: "var(--accent, #C25E3E)",
           muted: "var(--ink-faint, #7C756D)",
-          background: "transparent",
         };
     }
   };
 
   const colors = getColors();
 
-  // 1. Symbol Only (Icon)
+  // 1. Flat Geometric Symbol Mark (Used for symbol, compact, and lockups)
+  const renderSymbol = (overrideSize = pixelSize) => (
+    <svg
+      width={overrideSize}
+      height={overrideSize}
+      viewBox="0 0 32 32"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      role="img"
+      aria-label="Sentinel Logo"
+      className={`shrink-0 ${className}`}
+      {...svgProps}
+    >
+      <title>Sentinel Symbol</title>
+      {/* Upper geometric S-arm (Terracotta) */}
+      <path
+        d="M26 8.5H12C9.51472 8.5 7.5 10.5147 7.5 13C7.5 15.4853 9.51472 17.5 12 17.5H20C22.4853 17.5 24.5 19.5147 24.5 22C24.5 24.4853 22.4853 26.5 20 26.5H6"
+        stroke={colors.accent}
+        strokeWidth="3.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Precision architectural sentinel diagonal cross-anchor (Charcoal/Primary) */}
+      <path
+        d="M10 5.5L22 26.5"
+        stroke={colors.primary}
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeOpacity="0.8"
+      />
+      {/* Top and bottom calibration sentinel nodes */}
+      <circle cx="26" cy="8.5" r="2" fill={colors.accent} />
+      <circle cx="6" cy="26.5" r="2" fill={colors.accent} />
+      {/* Central focus node */}
+      <circle cx="16" cy="16" r="1.75" fill={colors.primary} />
+    </svg>
+  );
+
+  // Symbol only
   if (variant === "symbol" || variant === "compact") {
-    return (
-      <svg
-        width={pixelSize}
-        height={pixelSize}
-        viewBox="0 0 32 32"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        role="img"
-        aria-label="Sentinel Logo"
-        className={`shrink-0 transition-transform duration-200 ${className}`}
-        {...svgProps}
-      >
-        <title>Sentinel Symbol</title>
-        {/* Outer orbital lens sweep (top-left to bottom-right) */}
-        <path
-          d="M 16 3 C 23.18 3 29 8.82 29 16 C 29 19.3 27.77 22.31 25.75 24.6"
-          stroke={colors.accent}
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeDasharray="28 4"
-        />
-        {/* Counter-orbital sweep (bottom-right to top-left) */}
-        <path
-          d="M 16 29 C 8.82 29 3 23.18 3 16 C 3 12.7 4.23 9.69 6.25 7.4"
-          stroke={colors.primary}
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeOpacity="0.85"
-        />
-        {/* Precision aperture ring */}
-        <circle
-          cx="16"
-          cy="16"
-          r="7.5"
-          stroke={colors.accent}
-          strokeWidth="1.5"
-          strokeDasharray="2 3"
-          strokeOpacity="0.75"
-        />
-        {/* Cardinal calibration ticks */}
-        <line
-          x1="16"
-          y1="5.5"
-          x2="16"
-          y2="7.5"
-          stroke={colors.primary}
-          strokeWidth="1.5"
-          strokeLinecap="round"
-        />
-        <line
-          x1="16"
-          y1="24.5"
-          x2="16"
-          y2="26.5"
-          stroke={colors.primary}
-          strokeWidth="1.5"
-          strokeLinecap="round"
-        />
-        <line
-          x1="5.5"
-          y1="16"
-          x2="7.5"
-          y2="16"
-          stroke={colors.primary}
-          strokeWidth="1.5"
-          strokeLinecap="round"
-        />
-        <line
-          x1="24.5"
-          y1="16"
-          x2="26.5"
-          y2="16"
-          stroke={colors.primary}
-          strokeWidth="1.5"
-          strokeLinecap="round"
-        />
-        {/* Core vigilant eye node */}
-        <circle cx="16" cy="16" r="3" fill={colors.accent} />
-        <circle
-          cx="16"
-          cy="16"
-          r="1.2"
-          fill={colors.background === "transparent" ? "#FFF" : colors.background}
-        />
-      </svg>
-    );
+    return renderSymbol();
   }
 
-  // 2. Horizontal Wordmark Only
+  // Wordmark only
   if (variant === "wordmark") {
     return (
       <span
-        className={`inline-flex items-baseline gap-1.5 font-display font-semibold tracking-tight ${className}`}
+        className={`inline-flex items-baseline gap-1 font-display font-bold tracking-[0.05em] text-ink ${className}`}
       >
-        <span style={{ color: colors.primary }} className="text-lg tracking-[0.06em]">
-          SENTINEL
-        </span>
-        <span style={{ color: colors.accent }} className="text-base font-bold">
-          .
-        </span>
+        <span style={{ color: colors.primary }}>SENTINEL</span>
+        <span style={{ color: colors.accent }}>.</span>
       </span>
     );
   }
 
-  // 3. Full Lockup (Symbol + Wordmark + Optional Subtitle)
+  // Full Lockup (Symbol + Wordmark + Optional Subtitle)
   return (
     <div className={`inline-flex items-center gap-2.5 select-none ${className}`}>
-      <svg
-        width={pixelSize}
-        height={pixelSize}
-        viewBox="0 0 32 32"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        role="img"
-        aria-label="Sentinel Logo"
-        className="shrink-0"
-        {...svgProps}
-      >
-        <title>Sentinel Logo</title>
-        <path
-          d="M 16 3 C 23.18 3 29 8.82 29 16 C 29 19.3 27.77 22.31 25.75 24.6"
-          stroke={colors.accent}
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeDasharray="28 4"
-        />
-        <path
-          d="M 16 29 C 8.82 29 3 23.18 3 16 C 3 12.7 4.23 9.69 6.25 7.4"
-          stroke={colors.primary}
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeOpacity="0.85"
-        />
-        <circle
-          cx="16"
-          cy="16"
-          r="7.5"
-          stroke={colors.accent}
-          strokeWidth="1.5"
-          strokeDasharray="2 3"
-          strokeOpacity="0.75"
-        />
-        <line
-          x1="16"
-          y1="5.5"
-          x2="16"
-          y2="7.5"
-          stroke={colors.primary}
-          strokeWidth="1.5"
-          strokeLinecap="round"
-        />
-        <line
-          x1="16"
-          y1="24.5"
-          x2="16"
-          y2="26.5"
-          stroke={colors.primary}
-          strokeWidth="1.5"
-          strokeLinecap="round"
-        />
-        <line
-          x1="5.5"
-          y1="16"
-          x2="7.5"
-          y2="16"
-          stroke={colors.primary}
-          strokeWidth="1.5"
-          strokeLinecap="round"
-        />
-        <line
-          x1="24.5"
-          y1="16"
-          x2="26.5"
-          y2="16"
-          stroke={colors.primary}
-          strokeWidth="1.5"
-          strokeLinecap="round"
-        />
-        <circle cx="16" cy="16" r="3" fill={colors.accent} />
-        <circle
-          cx="16"
-          cy="16"
-          r="1.2"
-          fill={colors.background === "transparent" ? "#FFF" : colors.background}
-        />
-      </svg>
+      {renderSymbol()}
       <div className="flex flex-col text-left">
         <span className="font-display text-base font-bold tracking-[0.06em] text-ink leading-tight">
           SENTINEL

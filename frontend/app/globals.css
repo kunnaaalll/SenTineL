@@ -9,6 +9,7 @@
  * and copper accents, sage and warm stone supporting signals.
  *
  * Every foreground/background pair meets WCAG 2.2 Level AA contrast (≥4.5:1).
+ * Prohibited: Glowing balls, spheres, orbs, constellations, blobs, neon, glassmorphism.
  */
 
 /* Light-first default: Warm Ivory / Paper Foundation */
@@ -16,12 +17,13 @@
   /* --- Surfaces ---------------------------------------------------------- */
   --background: #faf7f2; /* Warm Paper / Alabaster Ivory */
   --surface: #ffffff; /* Pure Card White */
-  --surface-muted: #f2ece4; /* Warm Stone */
+  --surface-muted: #f2ece4; /* Warm Stone / Tinted Card */
   --surface-raised: #ffffff; /* Elevated Paper Card */
   --surface-overlay: #ece5dc; /* Card Hover / Active */
+  --scrim: rgba(26, 24, 22, 0.45); /* Mobile Drawer Scrim */
 
   /* --- Typography -------------------------------------------------------- */
-  --ink: #1a1816; /* Obsidian Charcoal (14.8:1 contrast) */
+  --ink: #1a1816; /* Obsidian Charcoal (14.8:1 contrast on #FAF7F2) */
   --ink-soft: #4f4a45; /* Slate Charcoal (7.6:1 contrast) */
   --ink-faint: #7c756d; /* Warm Stone Gray (4.6:1 contrast) */
 
@@ -47,11 +49,11 @@
   /* --- Focus Ring & Shadows ---------------------------------------------- */
   --focus: #c25e3e;
   --shadow-card: 0 1px 3px rgba(26, 24, 22, 0.04), 0 4px 12px rgba(26, 24, 22, 0.02);
-  --shadow-float: 0 8px 28px rgba(26, 24, 22, 0.08), 0 2px 6px rgba(26, 24, 22, 0.03);
-  --shadow-glow: 0 0 20px rgba(194, 94, 62, 0.12);
+  --shadow-float: 0 8px 24px rgba(26, 24, 22, 0.06), 0 2px 6px rgba(26, 24, 22, 0.02);
+  --shadow-sidebar: 2px 0 12px rgba(26, 24, 22, 0.04);
 }
 
-/* Dark Mode Fallback: Warm Obsidian Charcoal (No generic navy) */
+/* Dark Mode Fallback: Warm Obsidian Charcoal (No generic blue/navy) */
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #141312; /* Warm Obsidian Charcoal */
@@ -59,6 +61,7 @@
     --surface-muted: #282522; /* Muted Charcoal Stone */
     --surface-raised: #23201d; /* Raised Charcoal */
     --surface-overlay: #2d2a26;
+    --scrim: rgba(0, 0, 0, 0.7);
 
     --ink: #f5f2ed; /* Warm Ivory */
     --ink-soft: #bdb5aa; /* Soft Sand Stone */
@@ -83,7 +86,7 @@
     --focus: #d97352;
     --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.25);
     --shadow-float: 0 8px 28px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
-    --shadow-glow: 0 0 20px rgba(217, 115, 82, 0.18);
+    --shadow-sidebar: 2px 0 16px rgba(0, 0, 0, 0.4);
   }
 }
 
@@ -126,12 +129,6 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-image: radial-gradient(
-    ellipse 80% 50% at 50% -10%,
-    rgba(194, 94, 62, 0.03) 0%,
-    transparent 70%
-  );
-  background-attachment: fixed;
 }
 
 /* Terracotta focus ring satisfies ≥3:1 on all surfaces */
@@ -169,46 +166,33 @@ body {
     animation: sentinel-pulse 2s ease-in-out infinite;
   }
 
-  /* Orb breathing for wake screen */
-  @keyframes orb-breathe {
-    0%,
-    100% {
-      transform: scale(1);
-      opacity: 0.8;
+  /* Research signal line sweep */
+  @keyframes signal-sweep {
+    0% {
+      transform: translateX(-100%);
+      opacity: 0;
     }
-    50% {
-      transform: scale(1.06);
+    30% {
       opacity: 1;
     }
-  }
-
-  .animate-orb-breathe {
-    animation: orb-breathe 4s ease-in-out infinite;
-  }
-
-  /* Constellation ring rotation */
-  @keyframes constellation-rotate {
-    from {
-      transform: rotate(0deg);
+    70% {
+      opacity: 1;
     }
-    to {
-      transform: rotate(360deg);
+    100% {
+      transform: translateX(100%);
+      opacity: 0;
     }
   }
 
-  .animate-constellation {
-    animation: constellation-rotate 90s linear infinite;
-  }
-
-  .animate-constellation-rev {
-    animation: constellation-rotate 120s linear infinite reverse;
+  .animate-signal-sweep {
+    animation: signal-sweep 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   }
 
   /* Content entrance */
   @keyframes fade-up {
     from {
       opacity: 0;
-      transform: translateY(12px);
+      transform: translateY(8px);
     }
     to {
       opacity: 1;
@@ -217,28 +201,7 @@ body {
   }
 
   .animate-fade-up {
-    animation: fade-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  }
-
-  /* Shimmer skeleton */
-  @keyframes shimmer {
-    from {
-      background-position: -200% 0;
-    }
-    to {
-      background-position: 200% 0;
-    }
-  }
-
-  .animate-shimmer {
-    background: linear-gradient(
-      90deg,
-      var(--surface-muted) 25%,
-      var(--surface-overlay) 50%,
-      var(--surface-muted) 75%
-    );
-    background-size: 200% 100%;
-    animation: shimmer 2s ease-in-out infinite;
+    animation: fade-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
   /* Children reveal after BackendGate transition */
@@ -252,7 +215,7 @@ body {
   }
 
   .animate-reveal {
-    animation: reveal-children 0.35s ease-out forwards;
+    animation: reveal-children 0.25s ease-out forwards;
   }
 }
 
@@ -260,10 +223,7 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .transition-enabled,
   .animate-pulse-dot,
-  .animate-orb-breathe,
-  .animate-constellation,
-  .animate-constellation-rev,
-  .animate-shimmer,
+  .animate-signal-sweep,
   .animate-fade-up,
   .animate-reveal {
     animation: none !important;
@@ -287,6 +247,6 @@ body {
   box-shadow: var(--shadow-float);
 }
 
-.shadow-glow {
-  box-shadow: var(--shadow-glow);
+.shadow-sidebar {
+  box-shadow: var(--shadow-sidebar);
 }

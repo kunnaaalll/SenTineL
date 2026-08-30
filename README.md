@@ -10,20 +10,22 @@ Latest milestone: Complete production-quality Next.js frontend milestone impleme
 
 Implemented:
 
-- **Frontend UI (`frontend/`)** — Next.js App Router (`/` and `/sources`), Tailwind CSS with dark mode, cinematic midnight/saffron design system, and `prefers-reduced-motion` support, full keyboard navigation (WCAG AA compliant).
-  - `BackendGate` — conditional Render cold-start wake-up experience ("Namaste, welcome to Sentinel") with bounded 120s readiness polling, live progress timer, friendly timeout retry, and non-destructive session degradation.
-  - `ChatWindow` — local conversational state, example queries, in-flight cancellation via Escape/button, loading skeletons, aria-live status announcements, and accessible clear-conversation modal.
+- **Frontend UI (`frontend/`)** — Next.js App Router (`/` and `/sources`), Tailwind CSS with light-first editorial financial research theme, terracotta & obsidian palette, `prefers-reduced-motion` support, full keyboard navigation (WCAG AA compliant).
+  - `BackendGate` — conditional Render cold-start startup experience ("Namaste, welcome to Sentinel.") with bounded 120s readiness polling, live progress timer, friendly timeout retry, expandable sanitized details, and non-destructive session degradation.
+  - `Sidebar` & `ConversationItem` — persistent 280px desktop sidebar with 56px collapsible rail, off-canvas mobile drawer with scrim, chronological session grouping (Today, Yesterday, Previous 7 days, Older), inline rename, and inline delete confirmation.
+  - `ChatWindow` — browser-local multi-session management, sticky bottom composer with safe-area insets and scroll clearance, example queries, in-flight cancellation via Escape/button, and live region announcements.
+  - `ResearchProcessingState` — restrained geometric research signal with thin ledger sweep and rotating verifiable research phases (zero spinners, bouncing dots, orbs, or fake percentages).
   - `MessageBubble` — markdown-safe answer rendering with GFM tables, inline interactive `[n]` citation markers, structured `Limitations:` caveat panels, explicit insufficient-evidence refusals.
   - `CitationCard` — expandable evidence cards detailing source title, excerpt, filing date, match score, section, and public EDGAR/news URLs.
   - `AgentTraceViewer` — collapsible multi-agent execution pipeline display (`classify → fetch → extract → compare → synthesize`) with Langfuse trace links.
   - `SourceUploadPanel` — SEC filing and market news ingestion forms with client-side validation, progress indicators, and detailed indexed chunk summaries.
-  - `StatusBar` — live backend readiness indicator polling `/ready` with degraded/offline state handling and "Saved on this device" local storage indicator.
-  - `lib/persistence.ts` — hydration-safe browser-only chat persistence under `sentinel.chat.v1` with quota handling, corruption recovery, and secret exclusion.
-  - `lib/readiness.ts` — bounded exponential-backoff polling state machine for backend cold-start detection.
+  - `StatusBar` — live backend readiness indicator polling `/ready` with degraded/offline state handling.
+  - `lib/useConversations.ts` — browser-local multi-session management under `sentinel:conversations` with automatic first-message title truncation, chronological grouping, corruption tolerance, and secret exclusion.
+  - `lib/readiness.ts` — bounded polling state machine for backend cold-start detection.
   - `lib/api.ts` — typed client for all backend endpoints (`/query`, `/agents/query`, `/ingest`, `/sources`, `/providers`, `/health`, `/ready`) supporting timeouts, AbortSignal cancellation, safe error normalization, and runtime reverse-proxy routing via `BACKEND_ORIGIN`.
 - **Frontend Containerization (`infra/Dockerfile.frontend`)** — Multi-stage standalone Next.js image running unprivileged (`USER node`, UID 1000), `/health` liveness probe.
 - **Docker Compose Stack (`infra/docker-compose.yml`)** — Standalone dual-service stack (`sentinel-backend` + `sentinel-frontend`) attached to bridge network with loopback bindings (ports 8000 and 3000).
-- **Backend & Core Engine (`backend/`)** — 372 offline unit tests, LangGraph agent team (`fetch → extract → compare → synthesize`), Financial Modeling Prep news adapter, SEC EDGAR adapter, fallback LLM engine, Pinecone vector store, and Langfuse tracing.
+- **Backend & Core Engine (`backend/`)** — 393 offline unit tests, LangGraph agent team (`fetch → extract → compare → synthesize`), Financial Modeling Prep news adapter, SEC EDGAR adapter, fallback LLM engine, Pinecone vector store, and Langfuse tracing.
 
 ## Setup
 
@@ -239,15 +241,18 @@ Sentinel handles this through a non-blocking conditional gate (`BackendGate`):
 5. **Zero Leaks**: Stack traces, provider keys, raw backend payloads, and secret-bearing URLs are strictly scrubbed from user-facing states.
 6. **Non-Destructive Session Degradation**: If the backend becomes unavailable *during* an active session, an unobtrusive degraded banner appears; existing conversation history and citations are never wiped.
 
-## Local Browser Chat Persistence
-
-Sentinel provides client-side conversation persistence without requiring accounts or cloud databases:
-- **Versioned Key**: Saved under `sentinel.chat.v1` in `localStorage`.
-- **Persisted Elements**: User questions, synthesized assistant responses, inline citations, agent execution paths, timestamps, and safe error states.
+## Local Browser Chat Sessions
+ 
+Sentinel provides client-side conversation sessions without requiring accounts or cloud databases:
+- **Versioned Key**: Saved under `sentinel:conversations` in `localStorage` (with automatic migration from legacy `sentinel.chat.v1`).
+- **Session Model**: Unique conversation ID, title auto-generated from the first question (word-boundary truncated to 48 characters), custom-title lock on rename, timestamps, and completed messages.
+- **Chronological Grouping**: Sessions automatically group into **Today**, **Yesterday**, **Previous 7 days**, and **Older**.
+- **Desktop & Mobile Navigation**: Persistent 280px sidebar, collapsible 56px icon rail on desktop, and touch-friendly off-canvas drawer on tablet/mobile.
 - **Hydration Safe**: State restoration is strictly deferred until client mount, preventing Next.js SSR hydration mismatches.
-- **Bounded Capacity**: Fixed FIFO cap of 50 messages to prevent browser storage exhaustion.
-- **Resilience**: Corrupted JSON, storage quota exceptions, and restricted storage (private browsing) are caught gracefully, falling back to memory-only state without crashing.
-- **Clear Conversation**: Dedicated action with confirmation modal allows users to wipe local history at any time.
+- **Bounded Capacity**: Fixed FIFO cap of 50 conversations and 100 messages per conversation to prevent browser storage exhaustion.
+- **Resilience**: Corrupted JSON, storage quota exceptions, and restricted storage (private browsing) are caught gracefully with non-blocking user feedback, maintaining in-memory chat functionality.
+- **In-Flight Safety**: In-flight requests are excluded from storage; only finalized questions and answers are persisted. Zero API keys, auth tokens, or provider secrets are ever stored.
+- **Inline Operations**: Real-time inline rename (Enter/blur commits, Escape cancels) and inline delete confirmation without blocking native popups.
 - **"Saved on this device"**: Subtle status indicator confirms local persistence status.
 
 ## Privacy & Security Limitations

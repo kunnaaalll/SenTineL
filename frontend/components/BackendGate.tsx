@@ -27,19 +27,18 @@ export function useBackendStatus(): BackendContextValue {
 // ---------------------------------------------------------------------------
 
 /**
- * Wraps all page content and shows a full-page wake-up experience if the
+ * Wraps all page content and shows a full-page startup experience if the
  * backend is not yet reachable (Render cold-start, container startup, etc.).
  *
  * States:
  * - "checking"  → transparent pass-through; no flicker for fast backends
  * - "ready"     → render children normally (the common path)
  * - "degraded"  → render children with a non-destructive top banner
- * - "waking"    → full-page Namaste welcome + progress + live announcements
- * - "timeout"   → full-page retry state
- * - "error"     → full-page gentle error state
+ * - "waking"    → startup screen with "Namaste, welcome to Sentinel." + restrained progress
+ * - "timeout"   → retry state with technical details behind expandable control
+ * - "error"     → gentle error state with retry
  *
- * Privacy: No stack traces, raw backend responses, provider errors, or
- * secret-bearing URLs are ever surfaced to the user.
+ * Privacy: No stack traces, raw responses, provider details, or secret-bearing URLs.
  */
 export function BackendGate({ children }: { children: ReactNode }) {
   const { status, elapsedSeconds, progress, detail, retry } = useReadiness();
@@ -58,7 +57,7 @@ export function BackendGate({ children }: { children: ReactNode }) {
   if (status === "ready" || status === "degraded") {
     return (
       <BackendContext.Provider value={{ status, isBackendDegraded }}>
-        <div className="animate-reveal">
+        <div className="animate-reveal flex-1 flex flex-col">
           {isBackendDegraded && <DegradedBanner />}
           {children}
         </div>
@@ -66,7 +65,7 @@ export function BackendGate({ children }: { children: ReactNode }) {
     );
   }
 
-  // Wake screen states
+  // Startup / Wake screen states
   return (
     <BackendContext.Provider value={{ status, isBackendDegraded: false }}>
       <WakeScreen
@@ -105,7 +104,7 @@ function DegradedBanner() {
 }
 
 // ---------------------------------------------------------------------------
-// WakeScreen — full-page cold-start / error experience
+// WakeScreen — full-page cold-start / startup / timeout experience
 // ---------------------------------------------------------------------------
 
 interface WakeScreenProps {
@@ -122,7 +121,7 @@ function WakeScreen({ status, elapsedSeconds, progress, detail, onRetry }: WakeS
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background px-4"
       aria-label="Sentinel research engine starting"
     >
       {/* Live region for screen readers */}
@@ -134,76 +133,66 @@ function WakeScreen({ status, elapsedSeconds, progress, detail, onRetry }: WakeS
             : "Unable to connect to the research engine."}
       </div>
 
-      {/* Decorative coordinate / aperture background */}
-      <ConstellationBackground />
-
-      {/* Centered card */}
-      <div className="relative z-10 flex w-full max-w-md flex-col items-center px-6 py-10 text-center animate-fade-up">
-        {/* Animated Brand Aperture Node */}
-        <div className="relative mb-6">
-          <div
-            aria-hidden
-            className="animate-orb-breathe flex h-20 w-20 items-center justify-center rounded-full bg-accent-soft border border-accent/30"
-            style={{
-              boxShadow: "0 0 36px rgba(194, 94, 62, 0.2), 0 0 72px rgba(194, 94, 62, 0.08)",
-            }}
-          >
-            <SentinelLogo variant="symbol" size={36} />
-          </div>
+      {/* Centered card with geometric border & restrained elevation */}
+      <div className="relative z-10 flex w-full max-w-md flex-col items-center rounded-2xl border border-line bg-surface p-8 text-center shadow-card sm:p-10 animate-fade-up">
+        {/* Geometric Sentinel Brand Mark */}
+        <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-xl border border-accent/20 bg-accent-soft">
+          <SentinelLogo variant="symbol" size={32} />
         </div>
 
         {/* Sentinel Brand Title */}
-        <p className="mb-1 text-xs font-bold uppercase tracking-[0.2em] text-accent">SENTINEL</p>
+        <p className="mb-2 font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-accent">
+          SENTINEL FINANCIAL INTELLIGENCE
+        </p>
 
-        {/* Primary headline */}
+        {/* Primary headline & copy */}
         {isWaking ? (
           <>
-            <h1 className="font-display mb-3 text-2xl font-bold tracking-tight text-ink sm:text-3xl">
+            <h1 className="font-display mb-2.5 text-2xl font-bold tracking-tight text-ink sm:text-3xl">
               Namaste, welcome to Sentinel.
             </h1>
-            <p className="mb-8 max-w-xs text-sm leading-relaxed text-ink-soft">
+            <p className="mb-6 max-w-xs text-sm leading-relaxed text-ink-soft">
               The research engine is starting. This usually takes about one minute.
             </p>
           </>
         ) : isTimeout ? (
           <>
-            <h1 className="font-display mb-3 text-2xl font-bold tracking-tight text-ink sm:text-3xl">
+            <h1 className="font-display mb-2.5 text-2xl font-bold tracking-tight text-ink sm:text-3xl">
               Sentinel is taking longer than expected.
             </h1>
-            <p className="mb-8 max-w-xs text-sm leading-relaxed text-ink-soft">
-              The research engine may still be starting up on Render. Click below to check again.
+            <p className="mb-6 max-w-xs text-sm leading-relaxed text-ink-soft">
+              The research engine may still be starting up. Click below to check again.
             </p>
           </>
         ) : (
           <>
-            <h1 className="font-display mb-3 text-2xl font-bold tracking-tight text-ink sm:text-3xl">
+            <h1 className="font-display mb-2.5 text-2xl font-bold tracking-tight text-ink sm:text-3xl">
               Unable to connect.
             </h1>
-            <p className="mb-8 max-w-xs text-sm leading-relaxed text-ink-soft">
+            <p className="mb-6 max-w-xs text-sm leading-relaxed text-ink-soft">
               The research engine could not be reached. Please check your connection and try again.
             </p>
           </>
         )}
 
-        {/* Progress section */}
+        {/* Progress section with elapsed time */}
         {isWaking && (
           <div
-            className="mb-8 w-full max-w-xs"
+            className="mb-6 w-full max-w-xs"
             role="progressbar"
             aria-valuenow={Math.round(progress * 100)}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-label={`Starting: ${elapsedSeconds} seconds elapsed`}
           >
-            {/* Time label */}
-            <p className="mb-2 text-center font-mono text-xs tabular-nums text-ink-faint">
-              Starting… {elapsedSeconds}s
-            </p>
-            {/* Progress bar track */}
-            <div className="h-1 w-full overflow-hidden rounded-full bg-line">
+            <div className="mb-2 flex items-center justify-between font-mono text-xs text-ink-faint">
+              <span>Warming engines</span>
+              <span className="tabular-nums">{elapsedSeconds}s</span>
+            </div>
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-muted border border-line">
               <div
                 className="h-full rounded-full bg-accent transition-all duration-1000"
-                style={{ width: `${Math.round(progress * 100)}%` }}
+                style={{ width: `${Math.max(4, Math.round(progress * 100))}%` }}
               />
             </div>
           </div>
@@ -220,9 +209,9 @@ function WakeScreen({ status, elapsedSeconds, progress, detail, onRetry }: WakeS
           </button>
         )}
 
-        {/* Expandable technical details — safe and sanitised */}
+        {/* Expandable technical details — safe and sanitised (no stack traces, no secrets, no URLs) */}
         {(isTimeout || status === "error") && detail && (
-          <details className="mt-6 w-full max-w-xs text-left">
+          <details className="mt-5 w-full max-w-xs text-left">
             <summary className="cursor-pointer text-xs font-medium text-ink-faint transition-enabled hover:text-ink-soft [&::-webkit-details-marker]:hidden">
               Technical details
             </summary>
@@ -233,80 +222,10 @@ function WakeScreen({ status, elapsedSeconds, progress, detail, onRetry }: WakeS
         )}
 
         {/* Research disclaimer */}
-        <p className="mt-8 text-[11px] leading-relaxed text-ink-faint">
-          Sentinel is a financial research tool for public filings and market news.
-          <br />
-          Not investment advice.
+        <p className="mt-6 border-t border-line/60 pt-4 text-[11px] leading-relaxed text-ink-faint">
+          Sentinel is a financial research tool for public filings and market news. Not investment
+          advice.
         </p>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// ConstellationBackground — decorative coordinate motif
-// ---------------------------------------------------------------------------
-
-function ConstellationBackground() {
-  const dots: { cx: number; cy: number; r: number; opacity: number }[] = [
-    { cx: 15, cy: 20, r: 1.2, opacity: 0.4 },
-    { cx: 82, cy: 12, r: 0.8, opacity: 0.3 },
-    { cx: 35, cy: 78, r: 1.0, opacity: 0.35 },
-    { cx: 68, cy: 65, r: 1.4, opacity: 0.45 },
-    { cx: 90, cy: 40, r: 0.9, opacity: 0.3 },
-    { cx: 8, cy: 55, r: 1.1, opacity: 0.32 },
-    { cx: 50, cy: 92, r: 0.7, opacity: 0.25 },
-    { cx: 72, cy: 88, r: 1.2, opacity: 0.38 },
-    { cx: 25, cy: 45, r: 0.8, opacity: 0.3 },
-    { cx: 60, cy: 30, r: 1.0, opacity: 0.34 },
-    { cx: 92, cy: 75, r: 0.9, opacity: 0.28 },
-    { cx: 40, cy: 15, r: 1.3, opacity: 0.4 },
-  ];
-
-  return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-      {/* Outer constellation ring */}
-      <div
-        className="animate-constellation absolute inset-0 m-auto h-[520px] w-[520px] opacity-15"
-        style={{ top: "50%", left: "50%", transform: "translate(-50%, -50%)" }}
-      >
-        <svg viewBox="0 0 100 100" className="h-full w-full">
-          <circle
-            cx="50"
-            cy="50"
-            r="48"
-            fill="none"
-            stroke="var(--accent)"
-            strokeWidth="0.4"
-            strokeDasharray="2 6"
-          />
-          {dots.map((d, i) => (
-            <circle key={i} cx={d.cx} cy={d.cy} r={d.r} fill="var(--accent)" opacity={d.opacity} />
-          ))}
-        </svg>
-      </div>
-      {/* Inner ring (counter-rotating) */}
-      <div
-        className="animate-constellation-rev absolute opacity-10"
-        style={{
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          width: "320px",
-          height: "320px",
-        }}
-      >
-        <svg viewBox="0 0 100 100" className="h-full w-full">
-          <circle
-            cx="50"
-            cy="50"
-            r="48"
-            fill="none"
-            stroke="var(--ink)"
-            strokeWidth="0.5"
-            strokeDasharray="1 4"
-          />
-        </svg>
       </div>
     </div>
   );

@@ -8,18 +8,15 @@ import {
   RequestCanceledError,
   userMessage,
 } from "@/lib/api";
-import {
-  clearPersistedMessages,
-  isStorageAvailable,
-  loadPersistedMessages,
-  saveMessages,
-  MAX_MESSAGES,
-} from "@/lib/persistence";
 import { useBackendStatus } from "@/components/BackendGate";
+import { useConversations } from "@/lib/useConversations";
+import { useOptionalConversationsContext } from "@/lib/ConversationsContext";
+import { isStorageAvailable } from "@/lib/persistence";
 import { MessageBubble, type ChatMessage } from "./MessageBubble";
 import { SentinelLogo } from "./SentinelLogo";
 
 const MAX_QUESTION_LENGTH = 4000;
+export const MAX_MESSAGES = 200;
 
 interface ExampleCategory {
   title: string;
@@ -53,98 +50,75 @@ const EXAMPLE_QUESTIONS: ExampleCategory[] = [
 let nextMessageId = 0;
 function newId(): string {
   nextMessageId += 1;
-  return `m${nextMessageId}`;
+  return `m${nextMessageId}_${Date.now()}`;
+}
+
+export interface ChatWindowProps {
+  conversationsHook?: ReturnType<typeof useConversations>;
 }
 
 /**
  * ChatWindow — Sentinel's Primary Financial Research Interface.
  *
  * Features:
+ * - Browser-local multi-session chat integration.
  * - Independent scrollable transcript with generous bottom clearance.
  * - Fixed/sticky floating composer anchored at the bottom with safe-area insets.
- * - Hydration-safe browser persistence under `sentinel.chat.v1`.
- * - In-memory fallback if storage is unavailable.
  * - Keyboard shortcuts: Enter to submit, Shift+Enter for newline, Escape to cancel.
- * - Accessible live regions and clear-conversation modal.
+ * - Accessible live regions and clear-conversation inline confirmation.
  */
-export function ChatWindow() {
+export function ChatWindow({ conversationsHook }: ChatWindowProps) {
+  const optionalContext = useOptionalConversationsContext();
+  const internalHook = useConversations();
+  const conv = conversationsHook ?? optionalContext ?? internalHook;
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [forceAgents, setForceAgents] = useState(false);
   const [announcement, setAnnouncement] = useState("");
-  const [storageAvailable, setStorageAvailable] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [storageAvailable, setStorageAvailable] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
-  const hasMountedRef = useRef(false);
+  const activeIdRef = useRef<string | null>(conv.activeConversationId);
 
   const { isBackendDegraded } = useBackendStatus();
 
-  // Derived: whether we have completed messages that are saved on device
+  // Storage check
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setStorageAvailable(isStorageAvailable());
+  }, []);
+
+  // Sync messages when active conversation changes
+  useEffect(() => {
+    activeIdRef.current = conv.activeConversationId;
+    if (conv.activeConversation) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setMessages(conv.activeConversation.messages);
+    } else {
+      setMessages([]);
+    }
+  }, [conv.activeConversationId, conv.activeConversation]);
+
+  // Derived: whether we have completed messages saved
   const hasSavedMessages =
     storageAvailable &&
     messages.some(
       (m) => m.status === "complete" || m.status === "error" || m.status === "canceled",
     );
 
-  // ---------------------------------------------------------------------------
-  // Load persisted messages on client hydration (SSR-safe)
-  // ---------------------------------------------------------------------------
-  useEffect(() => {
-    if (hasMountedRef.current) return;
-    hasMountedRef.current = true;
-
-    const available = isStorageAvailable();
-    setStorageAvailable(available);
-
-    if (available) {
-      const saved = loadPersistedMessages();
-      if (saved.length > 0) {
-        const restored: ChatMessage[] = saved.map((m) => ({
-          id: m.id,
-          role: m.role,
-          question: m.question ?? "",
-          status: m.status,
-          answer: m.answer,
-          citations: m.citations,
-          agent_path: m.agent_path,
-          trace_url: m.trace_url,
-          forcedAgents: m.forcedAgents,
-          errorCode: m.errorCode,
-          errorMessage: m.errorMessage,
-        }));
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setMessages(restored);
-      }
-    }
-  }, []);
-
-  // ---------------------------------------------------------------------------
-  // Save on every messages change
-  // ---------------------------------------------------------------------------
-  useEffect(() => {
-    if (!hasMountedRef.current || !storageAvailable) return;
-    const completed = messages.filter((m) => m.status !== "pending");
-    if (completed.length === 0) return;
-
-    saveMessages(completed);
-  }, [messages, storageAvailable]);
-
-  // ---------------------------------------------------------------------------
   // Auto-scroll on new messages
-  // ---------------------------------------------------------------------------
   useEffect(() => {
     if (messages.length > 0) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
     }
   }, [messages]);
 
-  // ---------------------------------------------------------------------------
   // Request cancellation
-  // ---------------------------------------------------------------------------
   const cancelInFlight = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
@@ -152,23 +126,21 @@ export function ChatWindow() {
 
   useEffect(() => cancelInFlight, [cancelInFlight]);
 
-  // ---------------------------------------------------------------------------
   // Clear conversation
-  // ---------------------------------------------------------------------------
   const handleClearRequest = () => setConfirmClear(true);
   const handleClearCancel = () => setConfirmClear(false);
   const handleClearConfirm = () => {
     cancelInFlight();
     setMessages([]);
     setConfirmClear(false);
-    clearPersistedMessages();
+    if (conv.activeConversationId) {
+      conv.deleteConversation(conv.activeConversationId);
+    }
     setAnnouncement("Conversation cleared.");
     inputRef.current?.focus();
   };
 
-  // ---------------------------------------------------------------------------
   // Submit question
-  // ---------------------------------------------------------------------------
   const submit = async (event?: FormEvent) => {
     event?.preventDefault();
     const question = input.trim();
@@ -179,20 +151,25 @@ export function ChatWindow() {
     setConfirmClear(false);
 
     const assistantId = newId();
-    setMessages((previous) => {
-      const next = [
-        ...previous,
-        { id: newId(), role: "user" as const, question, status: "complete" as const },
-        {
-          id: assistantId,
-          role: "assistant" as const,
-          question,
-          status: "pending" as const,
-          forcedAgents: forceAgents,
-        },
-      ];
-      return next.length > MAX_MESSAGES ? next.slice(-MAX_MESSAGES) : next;
-    });
+    const userTurn: ChatMessage = {
+      id: newId(),
+      role: "user",
+      question,
+      status: "complete",
+    };
+    const pendingTurn: ChatMessage = {
+      id: assistantId,
+      role: "assistant",
+      question,
+      status: "pending",
+      forcedAgents: forceAgents,
+    };
+
+    const nextMessages = [...messages, userTurn, pendingTurn];
+    const clampedMessages =
+      nextMessages.length > MAX_MESSAGES ? nextMessages.slice(-MAX_MESSAGES) : nextMessages;
+
+    setMessages(clampedMessages);
     setLoading(true);
     setAnnouncement("Researching your question. This can take up to a minute.");
 
@@ -206,38 +183,41 @@ export function ChatWindow() {
           role: m.role as "user" | "assistant",
           content: m.role === "user" ? (m.question ?? "") : (m.answer ?? ""),
         }));
+
       const request = {
         question,
         ...(history.length > 0 ? { history } : {}),
       };
+
       const response = forceAgents
         ? await askAgentsQuery(request, { signal: controller.signal, timeoutMs: QUERY_TIMEOUT_MS })
         : await askQuery(request, { signal: controller.signal, timeoutMs: QUERY_TIMEOUT_MS });
 
-      setMessages((previous) =>
-        previous.map((message) =>
-          message.id === assistantId
-            ? {
-                ...message,
-                status: "complete",
-                answer: response.answer,
-                citations: response.citations,
-                agent_path: response.agent_path,
-                trace_url: response.trace_url,
-              }
-            : message,
-        ),
+      const updated = clampedMessages.map((message) =>
+        message.id === assistantId
+          ? {
+              ...message,
+              status: "complete" as const,
+              answer: response.answer,
+              citations: response.citations,
+              agent_path: response.agent_path,
+              trace_url: response.trace_url,
+            }
+          : message,
       );
+
+      setMessages(updated);
+      conv.saveActiveMessages(updated);
       setAnnouncement(
         `Answer ready with ${response.citations.length} source${response.citations.length === 1 ? "" : "s"}.`,
       );
     } catch (error) {
       if (error instanceof RequestCanceledError || controller.signal.aborted) {
-        setMessages((previous) =>
-          previous.map((message) =>
-            message.id === assistantId ? { ...message, status: "canceled" } : message,
-          ),
+        const updated = clampedMessages.map((message) =>
+          message.id === assistantId ? { ...message, status: "canceled" as const } : message,
         );
+        setMessages(updated);
+        conv.saveActiveMessages(updated);
         setAnnouncement("Request canceled.");
       } else {
         const friendly = userMessage(error);
@@ -245,13 +225,18 @@ export function ChatWindow() {
           error instanceof Error && "code" in error
             ? String((error as Record<string, unknown>).code)
             : undefined;
-        setMessages((previous) =>
-          previous.map((message) =>
-            message.id === assistantId
-              ? { ...message, status: "error", errorMessage: friendly, errorCode: code }
-              : message,
-          ),
+        const updated = clampedMessages.map((message) =>
+          message.id === assistantId
+            ? {
+                ...message,
+                status: "error" as const,
+                errorMessage: friendly,
+                errorCode: code,
+              }
+            : message,
         );
+        setMessages(updated);
+        conv.saveActiveMessages(updated);
         setAnnouncement(`The request failed. ${friendly}`);
       }
     } finally {
@@ -283,6 +268,16 @@ export function ChatWindow() {
         {announcement}
       </div>
 
+      {/* Storage failure notice */}
+      {conv.storageError && (
+        <div
+          role="status"
+          className="mb-4 rounded-xl border border-warning/40 bg-warning-soft px-4 py-3 text-xs text-warning-ink"
+        >
+          {conv.storageError}
+        </div>
+      )}
+
       {/* Session degradation banner (backend alive but unconfigured) */}
       {isBackendDegraded && (
         <div
@@ -307,7 +302,7 @@ export function ChatWindow() {
           >
             {/* Sentinel brand mark */}
             <div className="mx-auto mb-5 flex justify-center">
-              <div className="rounded-full bg-accent-soft p-3.5 border border-accent/20">
+              <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-accent-soft border border-accent/20">
                 <SentinelLogo variant="symbol" size={32} />
               </div>
             </div>
@@ -356,7 +351,7 @@ export function ChatWindow() {
       {/* Fixed / Sticky Question Composer */}
       <div className="sticky bottom-0 z-30 w-full pt-2 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] bg-gradient-to-t from-background via-background/95 to-transparent">
         <form onSubmit={submit} className="space-y-2">
-          <div className="rounded-2xl border border-line bg-surface/95 backdrop-blur-md p-3 shadow-float transition-enabled focus-within:border-accent/60 focus-within:shadow-glow">
+          <div className="rounded-2xl border border-line bg-surface/98 backdrop-blur-xs p-3 shadow-float transition-enabled focus-within:border-accent/60">
             <label
               htmlFor="question-input"
               className="mb-1.5 block px-1 text-xs font-semibold uppercase tracking-wider text-ink-faint"

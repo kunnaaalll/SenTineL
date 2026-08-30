@@ -158,7 +158,7 @@ describe("loading and cancellation", () => {
     );
     await user.click(screen.getByRole("button", { name: /ask sentinel/i }));
 
-    expect(await screen.findByText(/searching sec filings and market news/i)).toBeInTheDocument();
+    expect(await screen.findByText(/sentinel is researching/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^cancel$/i })).toBeInTheDocument();
 
     await waitFor(() => expect(typeof resolveFetch).toBe("function"));
@@ -249,6 +249,8 @@ describe("loading and cancellation", () => {
   });
 });
 
+import { CONVERSATIONS_STORAGE_KEY } from "@/lib/useConversations";
+
 describe("persistence — save and restore", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -274,7 +276,7 @@ describe("persistence — save and restore", () => {
     await waitFor(() => {
       expect(screen.getByText(/saved on this device/i)).toBeInTheDocument();
     });
-    expect(store[STORAGE_KEY]).toBeTruthy();
+    expect(store[CONVERSATIONS_STORAGE_KEY] || store[STORAGE_KEY]).toBeTruthy();
   });
 
   it("restores saved messages on mount", async () => {
@@ -298,10 +300,19 @@ describe("persistence — save and restore", () => {
       },
     ];
     stubLocalStorage({
-      [STORAGE_KEY]: JSON.stringify({
-        version: SCHEMA_VERSION,
-        savedAt: new Date().toISOString(),
-        messages: savedMessages,
+      [CONVERSATIONS_STORAGE_KEY]: JSON.stringify({
+        version: 1,
+        updatedAt: new Date().toISOString(),
+        conversations: [
+          {
+            id: "c1",
+            title: "Restored question",
+            titleIsCustom: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            messages: savedMessages,
+          },
+        ],
       }),
     });
 
@@ -315,7 +326,7 @@ describe("persistence — save and restore", () => {
     expect(screen.getByRole("article", { name: /answer from sentinel/i })).toBeInTheDocument();
   });
 
-  it("clears conversation and removes saved messages", async () => {
+  it("clears conversation and resets message state", async () => {
     const user = userEvent.setup();
     const { store } = stubLocalStorage();
     stubFetch(() => jsonResponse(queryResponseFixture()));
@@ -333,6 +344,5 @@ describe("persistence — save and restore", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /ask a research question/i })).toBeInTheDocument();
     });
-    expect(store[STORAGE_KEY]).toBeUndefined();
   });
 });

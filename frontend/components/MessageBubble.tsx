@@ -5,6 +5,7 @@ import { Citation } from "@/lib/api";
 import { AnswerMarkdown, isInsufficientEvidence, splitLimitations } from "./AnswerMarkdown";
 import { CitationCard } from "./CitationCard";
 import { AgentTraceViewer } from "./AgentTraceViewer";
+import { ResearchProcessingState } from "./ResearchProcessingState";
 
 /**
  * One conversation turn in the research transcript.
@@ -43,32 +44,7 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
   if (message.status === "pending") {
     return (
       <article aria-label="Sentinel is researching your question">
-        <div
-          className="rounded-2xl rounded-bl-sm border border-line bg-surface p-5 shadow-card"
-          style={{ borderLeftWidth: "3px", borderLeftColor: "var(--accent)" }}
-        >
-          <p
-            role="status"
-            className="m-0 flex items-center gap-2.5 text-sm font-medium text-ink-soft"
-          >
-            <span
-              aria-hidden
-              className="animate-pulse-dot inline-block h-2.5 w-2.5 rounded-full bg-accent"
-            />
-            Searching SEC filings and market news…
-          </p>
-          <div aria-hidden className="mt-4 space-y-2.5">
-            <div className="animate-shimmer h-3 w-11/12 rounded-full" />
-            <div
-              className="animate-shimmer h-3 w-9/12 rounded-full"
-              style={{ animationDelay: "0.2s" }}
-            />
-            <div
-              className="animate-shimmer h-3 w-10/12 rounded-full"
-              style={{ animationDelay: "0.4s" }}
-            />
-          </div>
-        </div>
+        <ResearchProcessingState forcedAgents={message.forcedAgents} />
       </article>
     );
   }
