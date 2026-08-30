@@ -111,12 +111,15 @@ export function ChatWindow({ conversationsHook }: ChatWindowProps) {
       (m) => m.status === "complete" || m.status === "error" || m.status === "canceled",
     );
 
-  // Auto-scroll on new messages
+  // Auto-scroll on new messages (smooth, non-dislocating scroll)
   useEffect(() => {
     if (messages.length > 0) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+      const timer = setTimeout(() => {
+        bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }, 60);
+      return () => clearTimeout(timer);
     }
-  }, [messages]);
+  }, [messages.length]);
 
   // Request cancellation
   const cancelInFlight = useCallback(() => {
@@ -293,8 +296,8 @@ export function ChatWindow({ conversationsHook }: ChatWindowProps) {
         </div>
       )}
 
-      {/* Main message stream container with bottom clearance so sticky composer never covers content */}
-      <div className="flex-1 pb-44 sm:pb-48">
+      {/* Main message stream container */}
+      <div className="flex-1 pb-10">
         {!hasMessages ? (
           <section
             aria-label="Getting started"

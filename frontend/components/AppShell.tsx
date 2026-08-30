@@ -40,11 +40,11 @@ function AppShellInner({ children }: { children: ReactNode }) {
         onDeleteConversation={deleteConversation}
       />
 
-      {/* Main Content Area */}
-      <div className="flex flex-1 flex-col overflow-y-auto min-w-0">
-        <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 sm:px-6">
-          {/* Sticky Header */}
-          <header className="sticky top-0 z-40 flex flex-wrap items-center justify-between gap-3 border-b border-line bg-background/90 backdrop-blur-md py-3 sm:py-3.5">
+      {/* Main Content Area: Fixed Header + Scrollable Main Viewport */}
+      <div className="flex flex-1 flex-col h-screen overflow-hidden min-w-0">
+        {/* Fixed Header */}
+        <header className="shrink-0 z-30 flex h-14 w-full items-center justify-between border-b border-line bg-background/95 backdrop-blur-md px-4 sm:px-6">
+          <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
               {/* Mobile Drawer Hamburger Button */}
               <button
@@ -98,21 +98,23 @@ function AppShellInner({ children }: { children: ReactNode }) {
 
               <StatusBar />
             </div>
-          </header>
+          </div>
+        </header>
 
-          {/* Main Landmark */}
-          <main id="main-content" className="flex flex-1 flex-col py-4 sm:py-5">
+        {/* Scrollable Viewport */}
+        <main id="main-content" className="flex-1 overflow-y-auto min-h-0 relative">
+          <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col min-h-full px-4 sm:px-6 py-4 sm:py-5">
             {children}
-          </main>
+          </div>
+        </main>
 
-          {/* Accessible Disclaimer (visually hidden to avoid visual line clutter) */}
-          <footer className="sr-only">
-            <p>
-              Sentinel is a research tool for exploring public SEC filings and market news with
-              cited answers. It does not provide investment advice or make trading decisions.
-            </p>
-          </footer>
-        </div>
+        {/* Accessible Disclaimer (visually hidden) */}
+        <footer className="sr-only">
+          <p>
+            Sentinel is a research tool for exploring public SEC filings and market news with cited
+            answers. It does not provide investment advice or make trading decisions.
+          </p>
+        </footer>
       </div>
     </div>
   );
