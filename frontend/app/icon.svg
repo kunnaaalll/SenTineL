@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" fill="none">
-  <rect width="32" height="32" rx="6" fill="#FAF7F2"/>
-  <path d="M25 8H12C9.51472 8 7.5 10.0147 7.5 12.5C7.5 14.9853 9.51472 17 12 17H20C22.4853 17 24.5 19.0147 24.5 21.5C24.5 23.9853 22.4853 26 20 26H7" stroke="#C25E3E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M10 5.5L22 26.5" stroke="#1A1816" stroke-width="2" stroke-linecap="round" stroke-opacity="0.85"/>
-  <circle cx="25" cy="8" r="1.8" fill="#C25E3E"/>
-  <circle cx="7" cy="26" r="1.8" fill="#C25E3E"/>
-  <circle cx="16" cy="16" r="1.6" fill="#1A1816"/>
+  <rect width="32" height="32" rx="6" fill="#0A0A0A"/>
+  <path d="M25 8H12C9.51472 8 7.5 10.0147 7.5 12.5C7.5 14.9853 9.51472 17 12 17H20C22.4853 17 24.5 19.0147 24.5 21.5C24.5 23.9853 22.4853 26 20 26H7" stroke="#FF7A17" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M10 5.5L22 26.5" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-opacity="0.85"/>
+  <circle cx="25" cy="8" r="1.8" fill="#FF7A17"/>
+  <circle cx="7" cy="26" r="1.8" fill="#FF7A17"/>
+  <circle cx="16" cy="16" r="1.6" fill="#FFFFFF"/>
 </svg>

@@ -405,7 +405,7 @@ export function ChatWindow({ conversationsHook }: ChatWindowProps) {
                   <button
                     type="submit"
                     disabled={!canSubmit}
-                    className="transition-enabled rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-on-accent enabled:hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-40 shadow-sm"
+                    className="transition-enabled rounded-xl border border-accent/40 bg-accent-soft px-4 py-2 text-xs font-semibold text-accent-strong enabled:hover:bg-accent enabled:hover:text-black enabled:hover:border-accent disabled:cursor-not-allowed disabled:opacity-40 shadow-sm"
                   >
                     Ask Sentinel
                   </button>

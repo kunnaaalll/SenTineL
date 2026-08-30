@@ -241,18 +241,15 @@ Sentinel handles this through a non-blocking conditional gate (`BackendGate`):
 5. **Zero Leaks**: Stack traces, provider keys, raw backend payloads, and secret-bearing URLs are strictly scrubbed from user-facing states.
 6. **Non-Destructive Session Degradation**: If the backend becomes unavailable *during* an active session, an unobtrusive degraded banner appears; existing conversation history and citations are never wiped.
 
-## Local Browser Chat Sessions
- 
-Sentinel provides client-side conversation sessions without requiring accounts or cloud databases:
-- **Versioned Key**: Saved under `sentinel:conversations` in `localStorage` (with automatic migration from legacy `sentinel.chat.v1`).
-- **Session Model**: Unique conversation ID, title auto-generated from the first question (word-boundary truncated to 48 characters), custom-title lock on rename, timestamps, and completed messages.
-- **Chronological Grouping**: Sessions automatically group into **Today**, **Yesterday**, **Previous 7 days**, and **Older**.
-- **Desktop & Mobile Navigation**: Persistent 280px sidebar, collapsible 56px icon rail on desktop, and touch-friendly off-canvas drawer on tablet/mobile.
+## Local Browser Chat Persistence
+
+Sentinel provides client-side conversation persistence without requiring accounts or cloud databases:
+- **Versioned Key**: Saved under `sentinel.chat.v1` in `localStorage`.
+- **Persisted Elements**: User questions, synthesized assistant responses, inline citations, agent execution paths, timestamps, and safe error states.
 - **Hydration Safe**: State restoration is strictly deferred until client mount, preventing Next.js SSR hydration mismatches.
-- **Bounded Capacity**: Fixed FIFO cap of 50 conversations and 100 messages per conversation to prevent browser storage exhaustion.
-- **Resilience**: Corrupted JSON, storage quota exceptions, and restricted storage (private browsing) are caught gracefully with non-blocking user feedback, maintaining in-memory chat functionality.
-- **In-Flight Safety**: In-flight requests are excluded from storage; only finalized questions and answers are persisted. Zero API keys, auth tokens, or provider secrets are ever stored.
-- **Inline Operations**: Real-time inline rename (Enter/blur commits, Escape cancels) and inline delete confirmation without blocking native popups.
+- **Bounded Capacity**: Fixed FIFO cap of 50 messages to prevent browser storage exhaustion.
+- **Resilience**: Corrupted JSON, storage quota exceptions, and restricted storage (private browsing) are caught gracefully, falling back to memory-only state without crashing.
+- **Clear Conversation**: Dedicated action with confirmation modal allows users to wipe local history at any time.
 - **"Saved on this device"**: Subtle status indicator confirms local persistence status.
 
 ## Privacy & Security Limitations

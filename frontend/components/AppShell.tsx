@@ -43,8 +43,8 @@ function AppShellInner({ children }: { children: ReactNode }) {
       {/* Main Content Area */}
       <div className="flex flex-1 flex-col overflow-y-auto min-w-0">
         <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 sm:px-6">
-          {/* Header */}
-          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line py-3 sm:py-3.5">
+          {/* Sticky Header */}
+          <header className="sticky top-0 z-40 flex flex-wrap items-center justify-between gap-3 border-b border-line bg-background/90 backdrop-blur-md py-3 sm:py-3.5">
             <div className="flex items-center gap-2.5">
               {/* Mobile Drawer Hamburger Button */}
               <button
@@ -105,9 +105,9 @@ function AppShellInner({ children }: { children: ReactNode }) {
             {children}
           </main>
 
-          {/* Editorial Disclaimer Footer */}
-          <footer className="border-t border-line py-3 text-[11px] leading-relaxed text-ink-faint">
-            <p className="m-0">
+          {/* Accessible Disclaimer (visually hidden to avoid visual line clutter) */}
+          <footer className="sr-only">
+            <p>
               Sentinel is a research tool for exploring public SEC filings and market news with
               cited answers. It does not provide investment advice or make trading decisions.
             </p>

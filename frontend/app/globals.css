@@ -12,82 +12,46 @@
  * Prohibited: Glowing balls, spheres, orbs, constellations, blobs, neon, glassmorphism.
  */
 
-/* Light-first default: Warm Ivory / Paper Foundation */
+/* xAI-Inspired Engineered Dark Canvas Theme */
 :root {
   /* --- Surfaces ---------------------------------------------------------- */
-  --background: #faf7f2; /* Warm Paper / Alabaster Ivory */
-  --surface: #ffffff; /* Pure Card White */
-  --surface-muted: #f2ece4; /* Warm Stone / Tinted Card */
-  --surface-raised: #ffffff; /* Elevated Paper Card */
-  --surface-overlay: #ece5dc; /* Card Hover / Active */
-  --scrim: rgba(26, 24, 22, 0.45); /* Mobile Drawer Scrim */
+  --background: #0a0a0a; /* Engineered Near-Black Canvas */
+  --surface: #141518; /* Dark Charcoal Card */
+  --surface-muted: #191b1f; /* Muted Dark Surface */
+  --surface-raised: #1c1d22; /* Raised Bubble / Card */
+  --surface-overlay: #252830; /* Active / Hover Surface */
+  --scrim: rgba(0, 0, 0, 0.8); /* Mobile Scrim */
 
   /* --- Typography -------------------------------------------------------- */
-  --ink: #1a1816; /* Obsidian Charcoal (14.8:1 contrast on #FAF7F2) */
-  --ink-soft: #4f4a45; /* Slate Charcoal (7.6:1 contrast) */
-  --ink-faint: #7c756d; /* Warm Stone Gray (4.6:1 contrast) */
+  --ink: #ffffff; /* Pure White Display / Headlines */
+  --ink-soft: #dadbdf; /* Clean Readable Body */
+  --ink-faint: #7d8187; /* Tracked Mono Eyebrow & Metadata */
 
-  /* --- Structure & Borders ----------------------------------------------- */
-  --line: #e5ded5; /* Soft Parchment Line */
-  --line-strong: #cfc5b8; /* Focused / Active Border */
+  /* --- Structure & Hairline Borders -------------------------------------- */
+  --line: #212327; /* 1px Crisp Hairline */
+  --line-strong: #2f333a; /* Focused / Active Border */
 
-  /* --- Accent (Muted Terracotta / Rust Copper) -------------------------- */
-  --accent: #c25e3e; /* Muted Terracotta */
-  --accent-strong: #a34326; /* Deep Rust */
-  --accent-soft: #fbf0eb; /* Terracotta Mist */
-  --on-accent: #ffffff; /* Pure White Text on Accent */
+  /* --- Accent (Sunset Orange / Warm Copper) ----------------------------- */
+  --accent: #ff7a17; /* Sunset Orange */
+  --accent-strong: #ff9e4f; /* Sunset Light / Hover */
+  --accent-soft: #231710; /* Sunset Dark Mist */
+  --accent-btn: #38261e; /* Sunset Button Base */
+  --on-accent: #ffffff;
 
   /* --- Semantic Signals -------------------------------------------------- */
-  --success: #2d6a4f; /* Sage Green (SEC Filing verified) */
-  --success-soft: #ebf5f0; /* Sage Mist */
-  --warning-ink: #784e10; /* Ochre Ink */
-  --warning: #b37d2a; /* Ochre Amber */
-  --warning-soft: #fdf6ea; /* Amber Mist */
-  --danger: #c24141; /* Crimson Rust */
-  --danger-soft: #fdf0f0; /* Crimson Mist */
+  --success: #10b981; /* Emerald Green */
+  --success-soft: #0e241c; /* Emerald Mist */
+  --warning-ink: #f59e0b; /* Amber Ink */
+  --warning: #d97706; /* Amber Warning */
+  --warning-soft: #281d11; /* Amber Mist */
+  --danger: #ef4444; /* Crimson Danger */
+  --danger-soft: #291212; /* Crimson Mist */
 
   /* --- Focus Ring & Shadows ---------------------------------------------- */
-  --focus: #c25e3e;
-  --shadow-card: 0 1px 3px rgba(26, 24, 22, 0.04), 0 4px 12px rgba(26, 24, 22, 0.02);
-  --shadow-float: 0 8px 24px rgba(26, 24, 22, 0.06), 0 2px 6px rgba(26, 24, 22, 0.02);
-  --shadow-sidebar: 2px 0 12px rgba(26, 24, 22, 0.04);
-}
-
-/* Dark Mode Fallback: Warm Obsidian Charcoal (No generic blue/navy) */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #141312; /* Warm Obsidian Charcoal */
-    --surface: #1e1c1a; /* Deep Charcoal Card */
-    --surface-muted: #282522; /* Muted Charcoal Stone */
-    --surface-raised: #23201d; /* Raised Charcoal */
-    --surface-overlay: #2d2a26;
-    --scrim: rgba(0, 0, 0, 0.7);
-
-    --ink: #f5f2ed; /* Warm Ivory */
-    --ink-soft: #bdb5aa; /* Soft Sand Stone */
-    --ink-faint: #80786e; /* Faint Stone */
-
-    --line: #33302c;
-    --line-strong: #48433e;
-
-    --accent: #d97352; /* Warm Terracotta Flame */
-    --accent-strong: #e68869;
-    --accent-soft: #2d1c15;
-    --on-accent: #141312;
-
-    --success: #529e74;
-    --success-soft: #14281e;
-    --warning-ink: #e6b65c;
-    --warning: #d49d42;
-    --warning-soft: #2b210f;
-    --danger: #e05c5c;
-    --danger-soft: #2b1414;
-
-    --focus: #d97352;
-    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.25);
-    --shadow-float: 0 8px 28px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
-    --shadow-sidebar: 2px 0 16px rgba(0, 0, 0, 0.4);
-  }
+  --focus: #ff7a17;
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-float: 0 12px 36px rgba(0, 0, 0, 0.75), 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-sidebar: 2px 0 20px rgba(0, 0, 0, 0.7);
 }
 
 @theme inline {
