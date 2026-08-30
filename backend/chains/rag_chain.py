@@ -167,7 +167,8 @@ class RagChain:
         _footer_re = re.compile(r"Form\s+10-[KQ]\s*\|\s*\d+", re.IGNORECASE)
         _toc_re = re.compile(r"\|\s*Item\s+\d+.*\|\s*\d+\s*\|", re.IGNORECASE)
         _preamble_re = re.compile(
-            r"(?:the\s+following\s+table\s+shows|were\s+as\s+follows|was\s+as\s+follows|as\s+follows\b)",
+            r"(?:the\s+following\s+table\s+shows|were\s+as\s+follows|was\s+as\s+follows|as\s+follows\b|"
+            r"consolidated\s+statements\s+of\s+(?:operations|comprehensive\s+income|cash\s+flows|financial\s+condition|equity)\s*(?:\([^)]*\))?\s*$)",
             re.IGNORECASE,
         )
 
